@@ -7,6 +7,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Terminal.Gui" Version="1.19.0" />
     <PackageReference Include="Yarp.ReverseProxy" Version="2.3.0" />
     <None Remove="package.json" />
     <Content Update="package.json">
@@ -16,11 +17,6 @@
     <None Remove="vite.config.js" />
     <Content Remove="vite.config.js" />
     <Content Include="vite.config.js">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-      <CopyToPublishDirectory>Always</CopyToPublishDirectory>
-    </Content>
-    <None Remove="rules.json" />
-    <Content Update="rules.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>Always</CopyToPublishDirectory>
     </Content>

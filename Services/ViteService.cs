@@ -2,29 +2,48 @@ using System;
 using System.Diagnostics;
 using System.Net.Http;
 using System.Runtime.InteropServices;
+using Microsoft.AspNetCore.DataProtection.AuthenticatedEncryption.ConfigurationModel;
+using Microsoft.Extensions.Logging;
 
-namespace Esp32EmuConsole;
+namespace Esp32EmuConsole.Services;
 
 public class ViteService : IDisposable
 {
-    private readonly Process _proc;
-    private readonly IntPtr _jobHandle = IntPtr.Zero;
-    public string Url { get; }
+    private Process? _proc;
+    private IntPtr _jobHandle = IntPtr.Zero;
+    private readonly ILogger<ViteService> _logger;
+    private readonly ILogger _loggerVite;
+    private readonly string _working_directory;
+    private readonly string _url;
+    private bool _started;
+    public string Url => _url;
 
-    public ViteService(string workingDirectory, string url = "http://localhost:5173")
+    public ViteService(string workingDirectory, ILogger<ViteService> logger, ILoggerFactory loggerFactory, string url = "http://localhost:5173")
     {
-        Url = url;
+        _working_directory = workingDirectory ?? throw new ArgumentNullException(nameof(workingDirectory));
+        _url = url;
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        if (loggerFactory is null) throw new ArgumentNullException(nameof(loggerFactory));
+        _loggerVite = loggerFactory.CreateLogger("vite");
+        _started = false;
+    }
+
+    public void Start()
+    {
+        if (_started) return;
 
         var psi = new ProcessStartInfo
         {
             FileName = "cmd.exe",
             Arguments = "/c npm run dev",
-            WorkingDirectory = workingDirectory,
+            WorkingDirectory = _working_directory,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             UseShellExecute = false,
             CreateNoWindow = true
         };
+
+        _logger.LogInformation("Starting Vite process in {WorkingDirectory}", _working_directory);
 
         _proc = Process.Start(psi) ?? throw new InvalidOperationException("Failed to start Vite process.");
 
@@ -48,16 +67,18 @@ public class ViteService : IDisposable
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Failed to assign Vite process to job object: {ex.Message}");
+            _logger.LogError(ex, "Failed to assign Vite process to job object");
         }
 
-        _proc.OutputDataReceived += (_, e) => { if (e.Data is not null) Console.WriteLine($"[vite] {e.Data}"); };
-        _proc.ErrorDataReceived += (_, e) => { if (e.Data is not null) Console.WriteLine($"[vite:err] {e.Data}"); };
+        _proc.OutputDataReceived += (_, e) => { if (e.Data is not null) _loggerVite.LogInformation(e.Data); };
+        _proc.ErrorDataReceived += (_, e) => { if (e.Data is not null) _loggerVite.LogError(e.Data); };
         _proc.BeginOutputReadLine();
         _proc.BeginErrorReadLine();
+
+        _started = true;
     }
 
-    public static async Task<bool> WaitForViteAsync(HttpClient http, string url, TimeSpan timeout)
+    public async Task<bool> WaitForViteAsync(HttpClient http, string url, TimeSpan timeout)
     {
         var start = DateTime.UtcNow;
         while (DateTime.UtcNow - start < timeout)
@@ -65,7 +86,11 @@ public class ViteService : IDisposable
             try
             {
                 using var resp = await http.GetAsync(url);
-                if (resp.IsSuccessStatusCode) return true;
+                if (resp.IsSuccessStatusCode)
+                {
+                    _logger.LogInformation("Vite is ready at {Url}", url);
+                    return true;
+                }
             }
             catch { }
             await Task.Delay(500);
@@ -77,7 +102,7 @@ public class ViteService : IDisposable
     {
         try
         {
-            if (!_proc.HasExited)
+            if (_proc is not null && !_proc.HasExited)
             {
                 _proc.CloseMainWindow();
                 _proc.Kill(entireProcessTree: true);
@@ -85,7 +110,7 @@ public class ViteService : IDisposable
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Failed to stop Vite: {ex.Message}");
+            _logger.LogError(ex, "Failed to stop Vite process");
         }
         finally
         {
@@ -93,6 +118,7 @@ public class ViteService : IDisposable
             {
                 CloseHandle(_jobHandle);
             }
+            GC.SuppressFinalize(this);
         }
     }
 

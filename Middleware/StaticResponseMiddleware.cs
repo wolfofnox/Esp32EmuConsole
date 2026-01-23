@@ -1,16 +1,17 @@
-using Microsoft.AspNetCore.Http;
 
-namespace Esp32EmuConsole;
+namespace Esp32EmuConsole.Middleware;
 
 public class StaticResponseMiddleware
 {
     private readonly RequestDelegate _next;
-    private readonly RuleService _ruleService;
+    private readonly Services.RuleService _ruleService;
+    private readonly ILogger<StaticResponseMiddleware> _logger;
 
-    public StaticResponseMiddleware(RequestDelegate next, RuleService ruleService)
+    public StaticResponseMiddleware(RequestDelegate next, Services.RuleService ruleService, ILogger<StaticResponseMiddleware> logger)
     {
-        _next = next;
-        _ruleService = ruleService;
+        _next = next ?? throw new ArgumentNullException(nameof(next));
+        _ruleService = ruleService ?? throw new ArgumentNullException(nameof(ruleService));
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
     public async Task InvokeAsync(HttpContext ctx)
@@ -22,6 +23,7 @@ public class StaticResponseMiddleware
             {
                 ctx.Response.StatusCode = 501;
                 await ctx.Response.WriteAsync("No response defined for this endpoint.");
+                _logger.LogWarning("No response defined for endpoint {Method} {Path}", ctx.Request.Method, ctx.Request.Path);
                 return;
             }
 

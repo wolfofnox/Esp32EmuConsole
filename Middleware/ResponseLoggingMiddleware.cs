@@ -1,19 +1,23 @@
-using Microsoft.AspNetCore.Http;
 
-namespace Esp32EmuConsole;
+namespace Esp32EmuConsole.Middleware;
 
 public class ResponseLoggingMiddleware
 {
     private readonly RequestDelegate _next;
+    private readonly ILogger<ResponseLoggingMiddleware> _logger;
+    private readonly ILogger _loggerHttp;
 
-    public ResponseLoggingMiddleware(RequestDelegate next)
+    public ResponseLoggingMiddleware(RequestDelegate next, ILogger<ResponseLoggingMiddleware> logger, ILoggerFactory loggerFactory)
     {
-        _next = next;
+        _next = next ?? throw new ArgumentNullException(nameof(next));
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        if (loggerFactory is null) throw new ArgumentNullException(nameof(loggerFactory));
+        _loggerHttp = loggerFactory.CreateLogger("HTTP");
     }
 
     public async Task InvokeAsync(HttpContext ctx)
     {
         await _next(ctx);
-        Console.WriteLine($"{ctx.Request.Method} {ctx.Request.Path} -> {ctx.Response.StatusCode}");
+        _loggerHttp.LogInformation("{Method} {Path} -> {StatusCode}", ctx.Request.Method, ctx.Request.Path, ctx.Response.StatusCode);
     }
 }

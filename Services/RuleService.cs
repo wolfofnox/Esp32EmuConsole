@@ -1,6 +1,6 @@
 using System.Text.Json;
 
-namespace Esp32EmuConsole;
+namespace Esp32EmuConsole.Services;
 
 public class RuleService : IDisposable
 {
@@ -12,14 +12,17 @@ public class RuleService : IDisposable
         ReadCommentHandling = JsonCommentHandling.Skip,
         AllowTrailingCommas = true
     };
-
+    private readonly ILogger<RuleService> _logger;
     public List<Rule> Rules { get; private set; } = new();
     public Dictionary<string, FixedResponse?> RuleMap { get; private set; } = new(StringComparer.OrdinalIgnoreCase);
 
-    public RuleService(string workingDirectory)
+
+    public RuleService(string workingDirectory, ILogger<RuleService> logger)
     {
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _rulesPath = Path.Combine(workingDirectory, "rules.json");
         LoadRules();
+        _logger.LogInformation("Loaded {Count} rules from {RulesPath}", Rules.Count, _rulesPath);
 
         if (File.Exists(_rulesPath))
         {
@@ -45,7 +48,7 @@ public class RuleService : IDisposable
         }
         catch (JsonException ex)
         {
-            Console.WriteLine($"Error parsing rules.json: {ex.Message}");
+            _logger.LogError(ex, "Error parsing rules.json");
             Rules = new List<Rule>();
         }
 

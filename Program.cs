@@ -1,17 +1,30 @@
 
 using Esp32EmuConsole;
+using Tui = Esp32EmuConsole.Tui;
+using Services = Esp32EmuConsole.Services;
+using Middleware = Esp32EmuConsole.Middleware;
+using Utilities = Esp32EmuConsole.Utilities;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using System.Diagnostics;
+using System.Text.RegularExpressions;
 
 var cwd = Environment.CurrentDirectory;
 var vitePort = 5173;
-var port = 5096;
+var port = 5069;
 
 var builder = WebApplication.CreateBuilder(args);
 
-var initializer = new Initializer(cwd, AppContext.BaseDirectory);
-initializer.EnsureConfigFiles();
+// Central in-memory log buffer and provider so TUI can show all logs
+builder.Services.AddSingleton<Services.LogBuffer>();
+builder.Services.AddSingleton<ILoggerProvider, Utilities.InMemoryLoggerProvider>();
 
-builder.Services.AddSingleton<RuleService>(_ => new RuleService(cwd));
-builder.Services.AddSingleton<ViteService>(_ => new ViteService(cwd));
+builder.Services.AddHostedService<Tui.TuiHostedService>();
+
+// Register ViteService in DI but do not start the process in constructor
+builder.Services.AddSingleton<Services.ViteService>(sp => new Services.ViteService(cwd, sp.GetRequiredService<ILogger<Services.ViteService>>(), sp.GetRequiredService<ILoggerFactory>()));
+builder.Services.AddSingleton<Services.RuleService>(sp => new Services.RuleService(cwd, sp.GetRequiredService<ILogger<Services.RuleService>>()));
 
 // YARP reverse proxy configuration targeting Vite
 builder.Services.AddReverseProxy().LoadFromMemory(
@@ -38,21 +51,35 @@ builder.Services.AddReverseProxy().LoadFromMemory(
 );
 
 builder.WebHost.UseUrls($"http://localhost:{port}");
-Console.WriteLine($"Starting Esp32EmuConsole on http://localhost:{port}");
 
 var app = builder.Build();
+
+// Application startup message using the logging system (category: "app")
+var _logger = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("app");
+_logger.LogInformation("Starting Esp32EmuConsole on http://localhost:{Port}", port);
+
+// Wire Console output into the LogBuffer so Console.WriteLine from Vite, middleware, etc gets captured
+var logBuffer = app.Services.GetRequiredService<Services.LogBuffer>();
+var origOut = Console.Out;
+var origErr = Console.Error;
+Console.SetOut(new Utilities.ConsoleForwarderTextWriter(origOut, logBuffer));
+Console.SetError(new Utilities.ConsoleForwarderTextWriter(origErr, logBuffer, "[ERR] "));
 
 app.UseWebSockets();
 
 // Simple request logging
-app.UseMiddleware<ResponseLoggingMiddleware>();
+app.UseMiddleware<Middleware.ResponseLoggingMiddleware>();
 
 // Use the static response middleware (short-circuits matching endpoints)
-app.UseMiddleware<StaticResponseMiddleware>();
+app.UseMiddleware<Middleware.StaticResponseMiddleware>();
 
-// Ensure port is free before starting Vite (defensive cleanup of stray processes)
-initializer.KillProcessUsingPort(vitePort);
-app.Services.GetRequiredService<ViteService>();
+// Ensure config files and start Vite now that logging/providers are available
+EnsureConfigFiles();
+KillProcessUsingPort(vitePort);
+
+// start the DI-registered ViteService now that files are present and logging is available
+var vite = app.Services.GetRequiredService<Services.ViteService>();
+vite.Start();
 
 app.MapWs();
 
@@ -69,3 +96,73 @@ app.MapWhen(
     });
 
 app.Run();
+
+void EnsureConfigFiles()
+{
+    _logger.LogInformation("Ensuring config files exist in working directory: {WorkingDirectory}", cwd);
+    foreach (var f in new[] {"vite.config.js", "package.json"})
+    {
+        var dest = Path.Combine(cwd, f);
+        if (File.Exists(dest)) continue;
+
+        var src = Path.Combine(AppContext.BaseDirectory, f);
+        if (!File.Exists(src))
+        {
+            _logger.LogWarning("Template file not found: {Src}. Skipping copy for {File}.", src, f);
+            continue;
+        }
+
+        try
+        {
+            File.Copy(src, dest);
+            _logger.LogInformation("Copied {File} to working directory.", f);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to copy {File} from template.", f);
+        }
+    }
+}
+void KillProcessUsingPort(int port)
+{
+    try
+    {
+        var psi = new ProcessStartInfo
+        {
+            FileName = "netstat",
+            Arguments = "-ano",
+            RedirectStandardOutput = true,
+            UseShellExecute = false,
+            CreateNoWindow = true
+        };
+
+        using var p = Process.Start(psi);
+        if (p == null) return;
+        var output = p.StandardOutput.ReadToEnd();
+        p.WaitForExit();
+
+        foreach (var line in output.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
+        {
+            if (!line.Contains($":{port} ")) continue;
+            var tokens = Regex.Split(line.Trim(), "\\s+");
+            if (tokens.Length < 5) continue;
+            if (!int.TryParse(tokens[^1], out var pid)) continue;
+            if (pid == Process.GetCurrentProcess().Id) continue;
+            if (pid == 0) continue;
+            try
+            {
+                var victim = Process.GetProcessById(pid);
+                victim.Kill(entireProcessTree: true);
+                _logger.LogInformation("Killed process {Pid} listening on port {Port}.", pid, port);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to kill process {Pid} on port {Port}.", pid, port);
+            }
+        }
+    }
+    catch (Exception ex)
+    {
+        _logger.LogError(ex, "Port cleanup failed.");
+    }
+}
