@@ -1,17 +1,19 @@
-using Microsoft.AspNetCore.Builder;
-using Yarp.ReverseProxy;
+
 using Esp32EmuConsole;
+
+var cwd = Environment.CurrentDirectory;
+var vitePort = 5173;
+var port = 5096;
 
 var builder = WebApplication.CreateBuilder(args);
 
-var cwd = Environment.CurrentDirectory;
-var configInitializer = new ConfigInitializer(cwd, AppContext.BaseDirectory);
-configInitializer.EnsureFiles();
+var initializer = new Initializer(cwd, AppContext.BaseDirectory);
+initializer.EnsureConfigFiles();
+
 builder.Services.AddSingleton<RuleService>(_ => new RuleService(cwd));
 builder.Services.AddSingleton<ViteService>(_ => new ViteService(cwd));
 
 // YARP reverse proxy configuration targeting Vite
-var viteUrl = "http://localhost:5173";
 builder.Services.AddReverseProxy().LoadFromMemory(
     routes: new[]
     {
@@ -29,14 +31,14 @@ builder.Services.AddReverseProxy().LoadFromMemory(
             ClusterId = "vite",
             Destinations = new Dictionary<string, Yarp.ReverseProxy.Configuration.DestinationConfig>
             {
-                { "d1", new Yarp.ReverseProxy.Configuration.DestinationConfig { Address = viteUrl } }
+                { "d1", new Yarp.ReverseProxy.Configuration.DestinationConfig { Address = $"http://localhost:{vitePort}" } }
             }
         }
     }
 );
 
-builder.WebHost.UseUrls("http://localhost:5069");
-Console.WriteLine("Starting Esp32EmuConsole on http://localhost:5069");
+builder.WebHost.UseUrls($"http://localhost:{port}");
+Console.WriteLine($"Starting Esp32EmuConsole on http://localhost:{port}");
 
 var app = builder.Build();
 
@@ -48,6 +50,8 @@ app.UseMiddleware<ResponseLoggingMiddleware>();
 // Use the static response middleware (short-circuits matching endpoints)
 app.UseMiddleware<StaticResponseMiddleware>();
 
+// Ensure port is free before starting Vite (defensive cleanup of stray processes)
+initializer.KillProcessUsingPort(vitePort);
 app.Services.GetRequiredService<ViteService>();
 
 app.MapWs();

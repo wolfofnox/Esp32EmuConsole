@@ -14,7 +14,8 @@
       <CopyToPublishDirectory>Always</CopyToPublishDirectory>
     </Content>
     <None Remove="vite.config.js" />
-    <Content Update="vite.config.js">
+    <Content Remove="vite.config.js" />
+    <Content Include="vite.config.js">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>Always</CopyToPublishDirectory>
     </Content>
