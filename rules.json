@@ -1,0 +1,18 @@
+[
+    {
+        "uri": "/api/hello", // (Required) URI to match
+        "method": "GET", // (Required) HTTP method to match
+        "response": { // (Optional) response, if not present, response asked at runtime
+            "statusCode": 200, // (Required) HTTP status code
+            "contentType": "text/plain", // (Optional) Content-Type header
+            "headers": { // (Optional) Additional headers
+                "Cache-Control": "no-cache"
+            },
+            "body": "Hello, World!" // (Optional) Response body
+        }
+    },
+    { // Example of a rule without a predefined response
+        "uri": "/api/noresp",
+        "method": "GET"
+    }
+]

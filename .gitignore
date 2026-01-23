@@ -1,0 +1,74 @@
+# .gitignore for C# / .NET / Visual Studio projects
+
+# Build outputs
+[Bb]in/
+[Oo]bj/
+artifacts/
+publish/
+*.dll
+*.exe
+*.appx
+*.appxsym
+*.pdb
+*.ilk
+*.obj
+
+# Visual Studio
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.vcxproj.user
+*.vcxproj.filters
+
+# Rider / IntelliJ
+.idea/
+*.sln.iml
+*.DotSettings.user
+
+# VS Code
+.vscode/
+
+# NuGet
+packages/
+*.nupkg
+project.lock.json
+project.fragment.lock.json
+.nuget/
+
+# ASP.NET / Azure / secrets
+secrets.json
+local.settings.json
+appsettings.Development.json
+appsettings.Local.json
+
+# Test results / coverage
+TestResults/
+coverage/
+*.coverage
+*.coveragexml
+*.trx
+
+# Logs
+*.log
+
+# Database & generated files
+*.mdf
+*.ldf
+*.sqlite
+*.dbmdl
+
+# OS files
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Misc
+*.bak
+*.backup
+*.swp
+
+# Node.js and Vite
+node_modules/
+dist/
