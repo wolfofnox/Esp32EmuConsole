@@ -16,9 +16,14 @@ var port = 5069;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Central in-memory log buffer and provider so TUI can show all logs
-builder.Services.AddSingleton<Services.LogBuffer>();
-builder.Services.AddSingleton<ILoggerProvider, Utilities.InMemoryLoggerProvider>();
+// Central in-memory log buffer and provider so TUI can show all logs.
+// Create a single LogBuffer instance and configure logging to use only the
+// in-memory provider so log messages (vite, proxy, etc.) do not get written
+// to the console and overwrite the Spectre.Console UI.
+var logBuffer = new Services.LogBuffer();
+builder.Services.AddSingleton<Services.LogBuffer>(logBuffer);
+builder.Logging.ClearProviders();
+builder.Logging.AddProvider(new Utilities.InMemoryLoggerProvider(logBuffer));
 
 builder.Services.AddHostedService<Tui.TuiHostedService>();
 
@@ -59,7 +64,6 @@ var _logger = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("ap
 _logger.LogInformation("Starting Esp32EmuConsole on http://localhost:{Port}", port);
 
 // Wire Console output into the LogBuffer so Console.WriteLine from Vite, middleware, etc gets captured
-var logBuffer = app.Services.GetRequiredService<Services.LogBuffer>();
 var origOut = Console.Out;
 var origErr = Console.Error;
 Console.SetOut(new Utilities.ConsoleForwarderTextWriter(origOut, logBuffer));

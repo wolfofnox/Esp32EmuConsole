@@ -24,7 +24,7 @@ public class TuiHostedService : BackgroundService
             X = 0,
             Y = 1,
             Width = Dim.Fill(),
-            Height = Dim.Fill()
+            Height = Dim.Fill(1)
         };
         top.Add(win);
 
@@ -34,7 +34,7 @@ public class TuiHostedService : BackgroundService
             Y = 0,
             Width = Dim.Fill(),
             Height = 1,
-            Text = "Host: http://localhost:5000  |  Proxy: (auto)  |  WS: 0  |  Mode: Side-by-side"
+            Text = ""
         };
         win.Add(topBar);
 
@@ -77,7 +77,8 @@ public class TuiHostedService : BackgroundService
             Width = Dim.Fill(),
             Height = 1
         };
-        win.Add(statusBar);
+        // Add the status bar to the top-level so its hotkeys are processed globally
+        top.Add(statusBar);
 
         var logView = new TextView()
         {
@@ -89,6 +90,45 @@ public class TuiHostedService : BackgroundService
             WordWrap = true
         };
         logTab.Add(logView);
+
+        // Debug: show initial focus and keypress info in the top bar
+        _logger.LogInformation("TUI starting. Initial focused view: {focused}", top.Focused?.ToString() ?? "none");
+        topBar.Text = "Focus: " + (top.Focused?.ToString() ?? "none") + "  |  LastKey: -";
+
+        // Track focus changes (polling is simple and reliable across drivers)
+        View? prevFocused = null;
+        var prevKey = "-";
+        Application.MainLoop.AddTimeout(TimeSpan.FromMilliseconds(150), _ =>
+        {
+            try
+            {
+                var current = top.MostFocused;
+                if (!ReferenceEquals(current, prevFocused))
+                {
+                    prevFocused = current;
+                    var name = current?.ToString() ?? "none";
+                    _logger.LogInformation("Focus changed -> {view}", name);
+                    topBar.Text = "Focus: " + name + "  |  LastKey: " + prevKey;
+                }
+            }
+            catch { }
+            return true; // keep the timeout recurring
+        });
+
+        // Global key logging - subscribe via the top-level view's KeyDown event
+        top.KeyDown += (e) =>
+        {
+            try
+            {
+                var key = e.ToString();
+                _logger.LogInformation("Key pressed: {key}", key);
+                Application.MainLoop.Invoke(() =>
+                {
+                    topBar.Text = "Focus: " + (prevFocused?.ToString() ?? "none") + "  |  LastKey: " + key;
+                });
+            }
+            catch { }
+        };
 
         // populate initial logs
         foreach (var l in _logBuffer.Snapshot())
