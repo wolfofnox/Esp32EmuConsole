@@ -25,12 +25,11 @@ builder.Services.AddSingleton<Services.LogBuffer>(logBuffer);
 builder.Logging.ClearProviders();
 builder.Logging.AddProvider(new Utilities.InMemoryLoggerProvider(logBuffer));
 
-builder.Services.AddHostedService<Tui.TuiHostedService>();
+builder.Services.AddHostedService<Tui.HostedService>();
 
-// Register ViteService in DI but do not start the process in constructor
-builder.Services.AddSingleton<Services.ViteService>(sp => new Services.ViteService(cwd, sp.GetRequiredService<ILogger<Services.ViteService>>(), sp.GetRequiredService<ILoggerFactory>()));
-builder.Services.AddSingleton<Services.RuleService>(sp => new Services.RuleService(cwd, sp.GetRequiredService<ILogger<Services.RuleService>>()));
-
+// Register Vite in DI but do not start the process in constructor
+builder.Services.AddSingleton<Services.Vite>(sp => new Services.Vite(cwd, sp.GetRequiredService<ILogger<Services.Vite>>(), sp.GetRequiredService<ILoggerFactory>()));
+builder.Services.AddSingleton<Services.Rules>(sp => new Services.Rules(cwd, sp.GetRequiredService<ILogger<Services.Rules>>()));
 // YARP reverse proxy configuration targeting Vite
 builder.Services.AddReverseProxy().LoadFromMemory(
     routes: new[]
@@ -72,17 +71,17 @@ Console.SetError(new Utilities.ConsoleForwarderTextWriter(origErr, logBuffer, "[
 app.UseWebSockets();
 
 // Simple request logging
-app.UseMiddleware<Middleware.ResponseLoggingMiddleware>();
+app.UseMiddleware<Middleware.ResponseLogger>();
 
 // Use the static response middleware (short-circuits matching endpoints)
-app.UseMiddleware<Middleware.StaticResponseMiddleware>();
+app.UseMiddleware<Middleware.StaticResponse>();
 
 // Ensure config files and start Vite now that logging/providers are available
 EnsureConfigFiles();
 KillProcessUsingPort(vitePort);
 
-// start the DI-registered ViteService now that files are present and logging is available
-var vite = app.Services.GetRequiredService<Services.ViteService>();
+// start the DI-registered Vite now that files are present and logging is available
+var vite = app.Services.GetRequiredService<Services.Vite>();
 vite.Start();
 
 app.MapWs();
@@ -99,7 +98,7 @@ app.MapWhen(
         });
     });
 
-app.Run();
+await app.RunAsync();
 
 void EnsureConfigFiles()
 {

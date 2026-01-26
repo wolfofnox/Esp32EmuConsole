@@ -1,13 +1,13 @@
 
 namespace Esp32EmuConsole.Middleware;
 
-public class ResponseLoggingMiddleware
+public class ResponseLogger
 {
     private readonly RequestDelegate _next;
-    private readonly ILogger<ResponseLoggingMiddleware> _logger;
+    private readonly ILogger<ResponseLogger> _logger;
     private readonly ILogger _loggerHttp;
 
-    public ResponseLoggingMiddleware(RequestDelegate next, ILogger<ResponseLoggingMiddleware> logger, ILoggerFactory loggerFactory)
+    public ResponseLogger(RequestDelegate next, ILogger<ResponseLogger> logger, ILoggerFactory loggerFactory)
     {
         _next = next ?? throw new ArgumentNullException(nameof(next));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));

@@ -7,18 +7,18 @@ using Microsoft.Extensions.Logging;
 
 namespace Esp32EmuConsole.Services;
 
-public class ViteService : IDisposable
+public class Vite : IDisposable
 {
     private Process? _proc;
     private IntPtr _jobHandle = IntPtr.Zero;
-    private readonly ILogger<ViteService> _logger;
+    private readonly ILogger<Vite> _logger;
     private readonly ILogger _loggerVite;
     private readonly string _working_directory;
     private readonly string _url;
     private bool _started;
     public string Url => _url;
 
-    public ViteService(string workingDirectory, ILogger<ViteService> logger, ILoggerFactory loggerFactory, string url = "http://localhost:5173")
+    public Vite(string workingDirectory, ILogger<Vite> logger, ILoggerFactory loggerFactory, string url = "http://localhost:5173")
     {
         _working_directory = workingDirectory ?? throw new ArgumentNullException(nameof(workingDirectory));
         _url = url;

@@ -2,7 +2,7 @@ using System.Text.Json;
 
 namespace Esp32EmuConsole.Services;
 
-public class RuleService : IDisposable
+public class Rules : IDisposable
 {
     private readonly string _rulesPath;
     private readonly FileSystemWatcher? _watcher;
@@ -12,17 +12,17 @@ public class RuleService : IDisposable
         ReadCommentHandling = JsonCommentHandling.Skip,
         AllowTrailingCommas = true
     };
-    private readonly ILogger<RuleService> _logger;
-    public List<Rule> Rules { get; private set; } = new();
+    private readonly ILogger<Rules> _logger;
+    public List<Rule> RuleList { get; private set; } = new();
     public Dictionary<string, FixedResponse?> RuleMap { get; private set; } = new(StringComparer.OrdinalIgnoreCase);
 
 
-    public RuleService(string workingDirectory, ILogger<RuleService> logger)
+    public Rules(string workingDirectory, ILogger<Rules> logger)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _rulesPath = Path.Combine(workingDirectory, "rules.json");
         LoadRules();
-        _logger.LogInformation("Loaded {Count} rules from {RulesPath}", Rules.Count, _rulesPath);
+        _logger.LogInformation("Loaded {Count} rules from {RulesPath}", RuleList.Count, _rulesPath);
 
         if (File.Exists(_rulesPath))
         {
@@ -36,7 +36,7 @@ public class RuleService : IDisposable
     {
         if (!File.Exists(_rulesPath))
         {
-            Rules = new List<Rule>();
+            RuleList = new List<Rule>();
             RuleMap = new Dictionary<string, FixedResponse?>(StringComparer.OrdinalIgnoreCase);
             return;
         }
@@ -44,16 +44,16 @@ public class RuleService : IDisposable
         var jsonText = File.ReadAllText(_rulesPath);
         try
         {
-            Rules = JsonSerializer.Deserialize<List<Rule>>(jsonText, _jsonOptions) ?? new List<Rule>();
+            RuleList = JsonSerializer.Deserialize<List<Rule>>(jsonText, _jsonOptions) ?? new List<Rule>();
         }
         catch (JsonException ex)
         {
             _logger.LogError(ex, "Error parsing rules.json");
-            Rules = new List<Rule>();
+            RuleList = new List<Rule>();
         }
 
         var map = new Dictionary<string, FixedResponse?>(StringComparer.OrdinalIgnoreCase);
-        foreach (var r in Rules)
+        foreach (var r in RuleList)
         {
             var path = r.Uri?.Trim();
             if (string.IsNullOrWhiteSpace(path)) continue;
