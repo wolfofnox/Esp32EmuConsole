@@ -4,9 +4,9 @@ namespace Esp32EmuConsole.Utilities;
 
 public class InMemoryLoggerProvider : ILoggerProvider
 {
-    private readonly Services.LogBuffer _buffer;
+    private readonly Utilities.LogBuffer _buffer;
 
-    public InMemoryLoggerProvider(Services.LogBuffer buffer)
+    public InMemoryLoggerProvider(Utilities.LogBuffer buffer)
     {
         _buffer = buffer;
     }
@@ -21,9 +21,9 @@ public class InMemoryLoggerProvider : ILoggerProvider
     private class InMemoryLogger : ILogger
     {
         private readonly string _category;
-        private readonly Services.LogBuffer _buffer;
+        private readonly Utilities.LogBuffer _buffer;
 
-        public InMemoryLogger(string category, Services.LogBuffer buffer)
+        public InMemoryLogger(string category, Utilities.LogBuffer buffer)
         {
             _category = category;
             _buffer = buffer;
@@ -40,7 +40,7 @@ public class InMemoryLoggerProvider : ILoggerProvider
             var line = $"[{logLevel}] {_category}: {message}";
             if (exception is not null) line += $" {exception}";
             _buffer.Push(line);
-            // Console.WriteLine(line); // Temporarily also log to console
+            Console.WriteLine(line); // Temporarily also log to console
         }
     }
 }

@@ -1,105 +1,60 @@
 
-using Esp32EmuConsole;
 using Tui = Esp32EmuConsole.Tui;
 using Services = Esp32EmuConsole.Services;
-using Middleware = Esp32EmuConsole.Middleware;
 using Utilities = Esp32EmuConsole.Utilities;
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
 using System.Diagnostics;
 using System.Text.RegularExpressions;
 
-var cwd = Environment.CurrentDirectory;
-var vitePort = 5173;
-var port = 5069;
+var webConfig = new Services.WebServer.Configuration();
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Central in-memory log buffer and provider so TUI can show all logs.
-// Create a single LogBuffer instance and configure logging to use only the
-// in-memory provider so log messages (vite, proxy, etc.) do not get written
-// to the console and overwrite the Spectre.Console UI.
-var logBuffer = new Services.LogBuffer();
-builder.Services.AddSingleton<Services.LogBuffer>(logBuffer);
+var logBuffer = new Utilities.LogBuffer();
+builder.Services.AddSingleton(logBuffer);
 builder.Logging.ClearProviders();
 builder.Logging.AddProvider(new Utilities.InMemoryLoggerProvider(logBuffer));
 
-builder.Services.AddHostedService<Tui.HostedService>();
+// Register configs
+builder.Services.AddSingleton(webConfig);
 
 // Register Vite in DI but do not start the process in constructor
-builder.Services.AddSingleton<Services.Vite>(sp => new Services.Vite(cwd, sp.GetRequiredService<ILogger<Services.Vite>>(), sp.GetRequiredService<ILoggerFactory>()));
-builder.Services.AddSingleton<Services.Rules>(sp => new Services.Rules(cwd, sp.GetRequiredService<ILogger<Services.Rules>>()));
+var cwd = Environment.CurrentDirectory;
+builder.Services.AddSingleton(sp => new Services.Vite(cwd, sp.GetRequiredService<ILogger<Services.Vite>>(), sp.GetRequiredService<ILoggerFactory>()));
+builder.Services.AddSingleton(sp => new Services.Rules(cwd, sp.GetRequiredService<ILogger<Services.Rules>>()));
 // YARP reverse proxy configuration targeting Vite
 builder.Services.AddReverseProxy().LoadFromMemory(
-    routes: new[]
-    {
-        new Yarp.ReverseProxy.Configuration.RouteConfig
-        {
-            RouteId = "vite",
-            ClusterId = "vite",
-            Match = new Yarp.ReverseProxy.Configuration.RouteMatch { Path = "/{**catchall}" }
-        }
-    },
-    clusters: new[]
-    {
-        new Yarp.ReverseProxy.Configuration.ClusterConfig
-        {
-            ClusterId = "vite",
-            Destinations = new Dictionary<string, Yarp.ReverseProxy.Configuration.DestinationConfig>
-            {
-                { "d1", new Yarp.ReverseProxy.Configuration.DestinationConfig { Address = $"http://localhost:{vitePort}" } }
-            }
-        }
-    }
+    routes: webConfig.GetProxyRoutes,
+    clusters: webConfig.GetProxyCluster
 );
 
-builder.WebHost.UseUrls($"http://localhost:{port}");
+builder.WebHost.UseUrls(webConfig.listenUrl);
 
 var app = builder.Build();
 
 // Application startup message using the logging system (category: "app")
 var _logger = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("app");
-_logger.LogInformation("Starting Esp32EmuConsole on http://localhost:{Port}", port);
-
-// Wire Console output into the LogBuffer so Console.WriteLine from Vite, middleware, etc gets captured
-var origOut = Console.Out;
-var origErr = Console.Error;
-Console.SetOut(new Utilities.ConsoleForwarderTextWriter(origOut, logBuffer));
-Console.SetError(new Utilities.ConsoleForwarderTextWriter(origErr, logBuffer, "[ERR] "));
-
-app.UseWebSockets();
-
-// Simple request logging
-app.UseMiddleware<Middleware.ResponseLogger>();
-
-// Use the static response middleware (short-circuits matching endpoints)
-app.UseMiddleware<Middleware.StaticResponse>();
+_logger.LogInformation($"Starting Esp32EmuConsole on {webConfig.listenUrl}");
 
 // Ensure config files and start Vite now that logging/providers are available
 EnsureConfigFiles();
-KillProcessUsingPort(vitePort);
+KillProcessUsingPort(webConfig.vitePort);
 
 // start the DI-registered Vite now that files are present and logging is available
 var vite = app.Services.GetRequiredService<Services.Vite>();
 vite.Start();
+await vite.WaitForViteAsync(TimeSpan.FromSeconds(20));
 
-app.MapWs();
+var webServer = new Services.WebServer.WebServer(app);
+webServer.Configure();
+webServer.Start();
 
-app.MapWhen(
-    ctx => !ctx.Request.Path.StartsWithSegments("/api") &&
-           !ctx.Request.Path.StartsWithSegments("/ws"),
-    branch =>
-    {
-        branch.UseRouting();
-        branch.UseEndpoints(endpoints =>
-        {
-            endpoints.MapReverseProxy();
-        });
-    });
+var tui = new Tui.TUI(app.Services);
+tui.Run();
 
-await app.RunAsync();
+// while (true) {_logger.LogInformation("Esp32EmuConsole running..."); await Task.Delay(TimeSpan.FromMinutes(5));}
 
+//////// TODO move to master config class
 void EnsureConfigFiles()
 {
     _logger.LogInformation("Ensuring config files exist in working directory: {WorkingDirectory}", cwd);

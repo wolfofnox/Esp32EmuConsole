@@ -1,6 +1,6 @@
 using System.Collections.Concurrent;
 
-namespace Esp32EmuConsole.Services;
+namespace Esp32EmuConsole.Utilities;
 
 public class LogBuffer
 {
