@@ -47,7 +47,7 @@ await vite.WaitForViteAsync(TimeSpan.FromSeconds(20));
 
 var webServer = new Services.WebServer.WebServer(app);
 webServer.Configure();
-webServer.Start();
+await webServer.StartAsync();
 
 var tui = new Tui.TUI(app.Services);
 tui.Run();

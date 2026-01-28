@@ -7,8 +7,8 @@ class WebServer
     private readonly ILogger<WebServer> _logger;
     private readonly Services.Vite _vite;
     private readonly Services.Rules _rules;
-    private Services.WebServer.Configuration _config;
-    private WebApplication _app;
+    private readonly Services.WebServer.Configuration _config;
+    private readonly WebApplication _app;
     private Task? _serverTask;
 
     public WebServer(WebApplication app)
@@ -45,14 +45,46 @@ class WebServer
             });
     }
 
-    public void Start()
+    public Task StartAsync()
     {
-        ////// TODO Start in separate thread/task
-        _logger.LogInformation("WebServer started.");
+        if (_serverTask == null || _serverTask.IsCompleted)
+        {
+            _logger.LogInformation("Starting WebServer...");
+            _serverTask = _app.RunAsync();
+            _logger.LogInformation("WebServer run task started.");
+        }
+        else
+        {
+            _logger.LogInformation("WebServer already running.");
+        }
+
+        return Task.CompletedTask;
     }
 
-    public void Stop()
+    public async Task StopAsync()
     {
-        _logger.LogInformation("WebServer stopped.");
+        try
+        {
+            if (_serverTask != null && !_serverTask.IsCompleted)
+            {
+                _logger.LogInformation("Stopping WebServer...");
+                await _app.StopAsync();
+                await _serverTask;
+            }
+            else
+            {
+                _logger.LogInformation("WebServer not running; ensuring stop.");
+                await _app.StopAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error stopping WebServer.");
+        }
+        finally
+        {
+            _serverTask = null;
+            _logger.LogInformation("WebServer stopped.");
+        }
     }
 }
