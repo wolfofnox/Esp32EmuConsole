@@ -1,4 +1,7 @@
 using Terminal.Gui;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Esp32EmuConsole.Utilities;
 
 namespace Esp32EmuConsole.Tui;
 
@@ -7,11 +10,13 @@ public class TUI
 {
     private readonly ILogger<TUI> _logger;
     private readonly IServiceProvider _services;
+    private readonly LogBuffer _logBuffer;
 
     public TUI(IServiceProvider serviceProvider)
     {
         _services = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
         _logger = _services.GetRequiredService<ILogger<TUI>>();
+        _logBuffer = _services.GetService<LogBuffer>();
     }
 
     public void Run()
@@ -26,7 +31,7 @@ public class TUI
             Y = 2,
 
             Width = Dim.Fill(),
-            Height = Dim.Fill()
+            Height = Dim.Fill()-1
         };
 
         top.Add(win);
@@ -48,6 +53,12 @@ public class TUI
                 {
                     MessageBox.Query(50, 7, "Static Responses", "Static Responses dialog not implemented yet.", "Ok");
                 })
+            }),
+            new MenuBarItem("_View", new MenuItem[]
+            {
+                new MenuItem("[x]_App logs", "", () => {}),
+                new MenuItem("[]_Http traffic", "", () => {}),
+                new MenuItem("[]_WebSocket traffic", "", () => {})
             }),
             new MenuBarItem("_Help", new MenuItem[]
             {
@@ -77,42 +88,78 @@ public class TUI
         top.Add(topLabel);
 
 
-        var label = new Label("Press ANY key... (Ctrl+C to quit)")
+        var textView = new TextView()
         {
-            X = Pos.Center(),
-            Y = Pos.Center()
+            ReadOnly = true,
+            Width = Dim.Fill(),
+            Height = Dim.Fill()
         };
 
-        win.Add(label);
+        if (_logBuffer is null)
+        {
+            textView.Text = "No LogBuffer registered in services.";
+            return;
+        }
+
+        // Populate initial snapshot
+        var snapshot = _logBuffer.Snapshot();
+        if (snapshot.Length > 0)
+            textView.Text = string.Join(Environment.NewLine, snapshot);
+
+        // Event handler to append new log lines on the GUI thread
+        Action<string> handler = (line) =>
+        {
+            Application.MainLoop.Invoke(() =>
+            {
+                var cur = textView.Text?.ToString() ?? string.Empty;
+                if (string.IsNullOrEmpty(cur))
+                    textView.Text = line;
+                else
+                    textView.Text = cur + Environment.NewLine + line;
+                textView.MoveEnd();
+                Application.Refresh();
+            });
+        };
+
+        _logBuffer.NewLog += handler;
+
+        win.Add(textView);
+
+        var label = new Label("Keypress: ")
+        {
+            X = 0,
+            Y = Pos.AnchorEnd(1),
+            Width = Dim.Fill(),
+            Height = 1,
+            ColorScheme = new ColorScheme()
+            {
+                Normal = Application.Driver.MakeAttribute(Color.Black, Color.Gray)
+            }
+        };
+
+        top.Add(label);
+
+        // textView.SetFocus();
 
         top.KeyPress += (e) =>
         {
-            label.Text = $"Key detected on top: {e.KeyEvent.Key}";
-            Application.Refresh();
             if (e.KeyEvent.Key == (Key.CtrlMask | Key.C))
             {
+                e.Handled = true;
                 Application.RequestStop();
             }
+            label.Text = $"Keypress (top): {e.KeyEvent.Key}";
+            Application.Refresh();
         };
 
-        win.KeyPress += (e) =>
+        textView.KeyPress += (e) =>
         {
-            label.Text = $"Key detected on win: {e.KeyEvent.Key}";
-            Application.Refresh();
-            if (e.KeyEvent.Key == (Key.CtrlMask | Key.C))
+            if (e.KeyEvent.Key == Key.G)
             {
-                Application.RequestStop();
+                e.Handled = true;
+                MessageBox.Query(50, 7, "Key Pressed", "You pressed 'G' in the TextView!", "Ok");
             }
-        };
-
-        menu.KeyPress += (e) =>
-        {
-            label.Text = $"Key detected on menu: {e.KeyEvent.Key}";
-            Application.Refresh();
-            if (e.KeyEvent.Key == (Key.CtrlMask | Key.C))
-            {
-                Application.RequestStop();
-            }
+            label.Text = $"Keypress (textView): {e.KeyEvent.Key}";
         };
 
         Application.Run();
@@ -120,4 +167,5 @@ public class TUI
 
         _logger.LogInformation("TUI exited.");
     }
+
 }

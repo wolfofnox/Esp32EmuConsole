@@ -40,7 +40,7 @@ public class InMemoryLoggerProvider : ILoggerProvider
             var line = $"[{logLevel}] {_category}: {message}";
             if (exception is not null) line += $" {exception}";
             _buffer.Push(line);
-            Console.WriteLine(line); // Temporarily also log to console
+            // Console.WriteLine(line); // Temporarily also log to console
         }
     }
 }
