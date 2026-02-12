@@ -1,4 +1,7 @@
-using Terminal.Gui;
+using Terminal.Gui.App;
+using Terminal.Gui.ViewBase;
+using Terminal.Gui.Views;
+using Terminal.Gui.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Esp32EmuConsole.Utilities;
@@ -11,159 +14,107 @@ public class TUI
     private readonly ILogger<TUI> _logger;
     private readonly IServiceProvider _services;
     private readonly LogBuffer _logBuffer;
+    private readonly IApplication _app;
+    private readonly Configuration _config;
 
     public TUI(IServiceProvider serviceProvider)
     {
         _services = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
         _logger = _services.GetRequiredService<ILogger<TUI>>();
-        _logBuffer = _services.GetService<LogBuffer>();
+        _config = _services.GetRequiredService<Configuration>();
+        _logBuffer = _services.GetRequiredService<LogBuffer>();
+        _app = Application.Create();
+
+        // Override the default configuration for the application to use the Amber Phosphor theme
+        Terminal.Gui.Configuration.ConfigurationManager.RuntimeConfig = """{ "Theme": "Amber Phosphor" }""";
+        Terminal.Gui.Configuration.ConfigurationManager.Enable (ConfigLocations.All);
     }
 
     public void Run()
     {
-        Application.Init();
+        _app.Init();
 
-        var top = Application.Top;
-
-        var win = new Window("Esp32EmuConsole TUI")
+        try
         {
-            X = 0,
-            Y = 2,
-
-            Width = Dim.Fill(),
-            Height = Dim.Fill()-1
-        };
-
-        top.Add(win);
-
-        var menu = new MenuBar(new MenuBarItem[]
+            var mainView = new MainView(_logBuffer, _config, _services.GetRequiredService<ILogger<MainView>>());
+            _app.Run(mainView);
+        }
+        finally
         {
-            new MenuBarItem("(use Alt)", new MenuItem[0]),
-            new MenuBarItem("_File", new MenuItem[]
-            {
-                new MenuItem("_Quit", "", () => { Application.RequestStop(); })
-            }),
-            new MenuBarItem("_Edit", new MenuItem[]
-            {
-                new MenuItem("_Settings", "", () =>
-                {
-                    MessageBox.Query(50, 7, "Settings", "Settings dialog not implemented yet.", "Ok");
-                }),
-                new MenuItem("Static _Responses", "", () =>
-                {
-                    MessageBox.Query(50, 7, "Static Responses", "Static Responses dialog not implemented yet.", "Ok");
-                })
-            }),
-            new MenuBarItem("_View", new MenuItem[]
-            {
-                new MenuItem("[x]_App logs", "", () => {}),
-                new MenuItem("[]_Http traffic", "", () => {}),
-                new MenuItem("[]_WebSocket traffic", "", () => {})
-            }),
-            new MenuBarItem("_Help", new MenuItem[]
-            {
-                new MenuItem("_About", "", () =>
-                {
-                    MessageBox.Query(50, 7, "About Esp32EmuConsole", "Esp32EmuConsole TUI\nVersion 1.0.0", "Ok");
-                })
-            })
-        })
-        {
-            Y = 1
-        };
-
-        top.Add(menu);
-
-        var topLabel = new Label("Terminal.Gui Application - Press Alt for Menu")
-        {
-            X = 0,
-            Y = 0,
-            Width = Dim.Fill(),
-            Height = 1,
-            ColorScheme = new ColorScheme()
-            {
-                Normal = Application.Driver.MakeAttribute(Color.Black, Color.Gray)
-            }
-        };
-        top.Add(topLabel);
-
-
-        var textView = new TextView()
-        {
-            ReadOnly = true,
-            Width = Dim.Fill(),
-            Height = Dim.Fill()
-        };
-
-        if (_logBuffer is null)
-        {
-            textView.Text = "No LogBuffer registered in services.";
-            return;
+            _logger.LogInformation("TUI is shutting down.");
+            _app.Dispose();
         }
 
-        // Populate initial snapshot
-        var snapshot = _logBuffer.Snapshot();
-        if (snapshot.Length > 0)
-            textView.Text = string.Join(Environment.NewLine, snapshot);
+        // var topLabel = new Label("Terminal.Gui Application - Press Alt for Menu")
+        // {
+        //     X = 0,
+        //     Y = 0,
+        //     Width = Dim.Fill(),
+        //     Height = 1,
+        //     ColorScheme = new ColorScheme()
+        //     {
+        //         Normal = Application.Driver.MakeAttribute(Color.Black, Color.Gray)
+        //     }
+        // };
+        // top.Add(topLabel);
 
-        // Event handler to append new log lines on the GUI thread
-        Action<string> handler = (line) =>
-        {
-            Application.MainLoop.Invoke(() =>
-            {
-                var cur = textView.Text?.ToString() ?? string.Empty;
-                if (string.IsNullOrEmpty(cur))
-                    textView.Text = line;
-                else
-                    textView.Text = cur + Environment.NewLine + line;
-                textView.MoveEnd();
-                Application.Refresh();
-            });
-        };
 
-        _logBuffer.NewLog += handler;
+        // var textView = new TextView()
+        // {
+        //     ReadOnly = true,
+        //     Width = Dim.Fill(),
+        //     Height = Dim.Fill()
+        // };
 
-        win.Add(textView);
+        // if (_logBuffer is null)
+        // {
+        //     textView.Text = "No LogBuffer registered in services.";
+        //     return;
+        // }
 
-        var label = new Label("Keypress: ")
-        {
-            X = 0,
-            Y = Pos.AnchorEnd(1),
-            Width = Dim.Fill(),
-            Height = 1,
-            ColorScheme = new ColorScheme()
-            {
-                Normal = Application.Driver.MakeAttribute(Color.Black, Color.Gray)
-            }
-        };
+        // _logBuffer.NewLog += handler;
 
-        top.Add(label);
+        // win.Add(textView);
 
-        // textView.SetFocus();
+        // var label = new Label("Keypress: ")
+        // {
+        //     X = 0,
+        //     Y = Pos.AnchorEnd(1),
+        //     Width = Dim.Fill(),
+        //     Height = 1,
+        //     ColorScheme = new ColorScheme()
+        //     {
+        //         Normal = Application.Driver.MakeAttribute(Color.Black, Color.Gray)
+        //     }
+        // };
 
-        top.KeyPress += (e) =>
-        {
-            if (e.KeyEvent.Key == (Key.CtrlMask | Key.C))
-            {
-                e.Handled = true;
-                Application.RequestStop();
-            }
-            label.Text = $"Keypress (top): {e.KeyEvent.Key}";
-            Application.Refresh();
-        };
+        // top.Add(label);
 
-        textView.KeyPress += (e) =>
-        {
-            if (e.KeyEvent.Key == Key.G)
-            {
-                e.Handled = true;
-                MessageBox.Query(50, 7, "Key Pressed", "You pressed 'G' in the TextView!", "Ok");
-            }
-            label.Text = $"Keypress (textView): {e.KeyEvent.Key}";
-        };
+        // // textView.SetFocus();
 
-        Application.Run();
-        Application.Shutdown();
+        // top.KeyPress += (e) =>
+        // {
+        //     if (e.KeyEvent.Key == (Key.CtrlMask | Key.C))
+        //     {
+        //         e.Handled = true;
+        //         Application.RequestStop();
+        //     }
+        //     label.Text = $"Keypress (top): {e.KeyEvent.Key}";
+        //     Application.Refresh();
+        // };
+
+        // textView.KeyPress += (e) =>
+        // {
+        //     if (e.KeyEvent.Key == Key.G)
+        //     {
+        //         e.Handled = true;
+        //         MessageBox.Query(50, 7, "Key Pressed", "You pressed 'G' in the TextView!", "Ok");
+        //     }
+        //     label.Text = $"Keypress (textView): {e.KeyEvent.Key}";
+        // };
+
+        // Application.Run();
+        // Application.Shutdown();
 
         _logger.LogInformation("TUI exited.");
     }

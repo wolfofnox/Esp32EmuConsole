@@ -6,6 +6,7 @@ using System.Diagnostics;
 using System.Text.RegularExpressions;
 
 var webConfig = new Services.WebServer.Configuration();
+var tuiConfig = new Tui.Configuration();
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -17,7 +18,7 @@ builder.Logging.AddProvider(new Utilities.InMemoryLoggerProvider(logBuffer));
 
 // Register configs
 builder.Services.AddSingleton(webConfig);
-
+builder.Services.AddSingleton(tuiConfig);
 // Register Vite in DI but do not start the process in constructor
 var cwd = Environment.CurrentDirectory;
 builder.Services.AddSingleton(sp => new Services.Vite(cwd, sp.GetRequiredService<ILogger<Services.Vite>>(), sp.GetRequiredService<ILoggerFactory>()));
