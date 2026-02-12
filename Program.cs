@@ -11,10 +11,16 @@ var tuiConfig = new Tui.Configuration();
 var builder = WebApplication.CreateBuilder(args);
 
 // Central in-memory log buffer and provider so TUI can show all logs.
-var logBuffer = new Utilities.LogBuffer();
-builder.Services.AddSingleton(logBuffer);
+var appBuf = new Utilities.LogBuffer();
+var httpBuf = new Utilities.LogBuffer();
+var wsBuf = new Utilities.LogBuffer();
 builder.Logging.ClearProviders();
-builder.Logging.AddProvider(new Utilities.InMemoryLoggerProvider(logBuffer));
+builder.Logging.AddProvider(new Utilities.InMemoryLoggerProvider(new[]
+{
+    new Utilities.LogRoute(appBuf, "fallback", LogLevel.Trace, Utilities.LogFormat.Full),
+    new Utilities.LogRoute(httpBuf, "Http*,HTTP*,http*", LogLevel.Trace, Utilities.LogFormat.Full),
+    new Utilities.LogRoute(wsBuf, "WS*,Ws*,ws*,WebSocket*,websocket*", LogLevel.Trace, Utilities.LogFormat.Full),
+}));
 
 // Register configs
 builder.Services.AddSingleton(webConfig);
@@ -36,6 +42,16 @@ var app = builder.Build();
 // Application startup message using the logging system (category: "app")
 var _logger = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("app");
 _logger.LogInformation($"Starting Esp32EmuConsole on {webConfig.listenUrl}");
+
+// Startup test logs to verify routing and file output per route
+var _factory = app.Services.GetRequiredService<ILoggerFactory>();
+var httpTestLogger = _factory.CreateLogger("HttpClient");
+var wsTestLogger = _factory.CreateLogger("WebSocketServer");
+var appTestLogger = _factory.CreateLogger("MyApp.Service");
+
+httpTestLogger.LogInformation("[TEST] HTTP log - should go to HTTP buffer and file");
+wsTestLogger.LogWarning("[TEST] WS log - should go to WS buffer and file");
+appTestLogger.LogError("[TEST] APP log - should go to fallback/app buffer and file");
 
 // Ensure config files and start Vite now that logging/providers are available
 EnsureConfigFiles();

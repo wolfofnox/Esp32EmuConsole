@@ -8,7 +8,6 @@ namespace Esp32EmuConsole.Tui;
 
 class MainView : Runnable
 {
-    private readonly LogBuffer _logBuffer;
     private MenuBar _menu;
     private FrameView? _appLogFrame;
     private FrameView? _httpLogFrame;
@@ -18,10 +17,8 @@ class MainView : Runnable
     private readonly Window _mainWindow;
     private readonly Configuration _config;
     private readonly ILogger<MainView> _logger;
-    public MainView(LogBuffer logBuffer, Configuration config, ILogger<MainView> logger)
+    public MainView(Configuration config, ILogger<MainView> logger)
     {
-        _logBuffer = logBuffer ?? throw new ArgumentNullException(nameof(logBuffer));
-
         _config = config ?? throw new ArgumentNullException(nameof(config));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 

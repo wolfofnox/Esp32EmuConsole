@@ -13,7 +13,6 @@ public class TUI
 {
     private readonly ILogger<TUI> _logger;
     private readonly IServiceProvider _services;
-    private readonly LogBuffer _logBuffer;
     private readonly IApplication _app;
     private readonly Configuration _config;
 
@@ -22,7 +21,6 @@ public class TUI
         _services = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
         _logger = _services.GetRequiredService<ILogger<TUI>>();
         _config = _services.GetRequiredService<Configuration>();
-        _logBuffer = _services.GetRequiredService<LogBuffer>();
         _app = Application.Create();
 
         // Override the default configuration for the application to use the Amber Phosphor theme
@@ -36,7 +34,7 @@ public class TUI
 
         try
         {
-            var mainView = new MainView(_logBuffer, _config, _services.GetRequiredService<ILogger<MainView>>());
+            var mainView = new MainView(_config, _services.GetRequiredService<ILogger<MainView>>());
             _app.Run(mainView);
         }
         finally
