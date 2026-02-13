@@ -43,16 +43,6 @@ var app = builder.Build();
 var _logger = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("app");
 _logger.LogInformation($"Starting Esp32EmuConsole on {webConfig.listenUrl}");
 
-// Startup test logs to verify routing and file output per route
-var _factory = app.Services.GetRequiredService<ILoggerFactory>();
-var httpTestLogger = _factory.CreateLogger("HttpClient");
-var wsTestLogger = _factory.CreateLogger("WebSocketServer");
-var appTestLogger = _factory.CreateLogger("MyApp.Service");
-
-httpTestLogger.LogInformation("[TEST] HTTP log - should go to HTTP buffer and file");
-wsTestLogger.LogWarning("[TEST] WS log - should go to WS buffer and file");
-appTestLogger.LogError("[TEST] APP log - should go to fallback/app buffer and file");
-
 // Ensure config files and start Vite now that logging/providers are available
 EnsureConfigFiles();
 KillProcessUsingPort(webConfig.vitePort);
@@ -69,18 +59,23 @@ await webServer.StartAsync();
 var tui = new Tui.TUI(app.Services);
 tui.Run();
 
-// while (true) {_logger.LogInformation("Esp32EmuConsole running..."); await Task.Delay(TimeSpan.FromMinutes(5));}
-
 //////// TODO move to master config class
 void EnsureConfigFiles()
 {
     _logger.LogInformation("Ensuring config files exist in working directory: {WorkingDirectory}", cwd);
+    
+    var templateDir = Path.Combine(AppContext.BaseDirectory, "templates");
+    if (!Directory.Exists(templateDir))
+    {
+        throw new DirectoryNotFoundException($"Template directory not found: {templateDir}");
+    }
+
     foreach (var f in new[] {"vite.config.js", "package.json"})
     {
         var dest = Path.Combine(cwd, f);
         if (File.Exists(dest)) continue;
 
-        var src = Path.Combine(AppContext.BaseDirectory, f);
+        var src = Path.Combine(templateDir, f);
         if (!File.Exists(src))
         {
             _logger.LogWarning("Template file not found: {Src}. Skipping copy for {File}.", src, f);
