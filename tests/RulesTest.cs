@@ -72,7 +72,6 @@ public class RulesTest : IDisposable
         Assert.NotNull(rulesService.RuleList[0].Response);
         Assert.Equal(200, rulesService.RuleList[0].Response?.StatusCode);
 
-        // Cleanup
     }
 
     [Fact]
@@ -89,7 +88,6 @@ public class RulesTest : IDisposable
         Assert.Empty(rulesService.RuleList);
         Assert.Empty(rulesService.RuleMap);
 
-        // Cleanup
     }
 
     [Fact]
@@ -109,7 +107,6 @@ public class RulesTest : IDisposable
         var logs = _logBuffer.Snapshot();
         Assert.Contains(logs, log => log.Contains("Error parsing"));
 
-        // Cleanup
     }
 
     [Fact]
@@ -145,7 +142,6 @@ public class RulesTest : IDisposable
         Assert.Equal(200, rulesService.RuleMap["GET /api/users"]?.StatusCode);
         Assert.Equal(201, rulesService.RuleMap["POST /api/users"]?.StatusCode);
 
-        // Cleanup
     }
 
     [Fact]
@@ -171,7 +167,6 @@ public class RulesTest : IDisposable
         Assert.True(rulesService.RuleMap.ContainsKey("get /test"));
         Assert.True(rulesService.RuleMap.ContainsKey("Get /test"));
 
-        // Cleanup
     }
 
     [Fact]
@@ -195,7 +190,6 @@ public class RulesTest : IDisposable
         // Assert
         Assert.True(rulesService.RuleMap.ContainsKey("GET /test"));
 
-        // Cleanup
     }
 
     [Fact]
@@ -219,7 +213,6 @@ public class RulesTest : IDisposable
         Assert.True(rulesService.RuleMap.ContainsKey("GET /test"));
         Assert.Null(rulesService.RuleMap["GET /test"]);
 
-        // Cleanup
     }
 
     [Fact]
@@ -252,7 +245,6 @@ public class RulesTest : IDisposable
         Assert.Single(rulesService.RuleMap);
         Assert.True(rulesService.RuleMap.ContainsKey("GET /valid"));
 
-        // Cleanup
     }
 
     [Fact]
@@ -276,7 +268,6 @@ public class RulesTest : IDisposable
         // Assert
         Assert.True(rulesService.RuleMap.ContainsKey("GET /test"));
 
-        // Cleanup
     }
 
     [Fact]
@@ -312,7 +303,6 @@ public class RulesTest : IDisposable
         Assert.Contains(logs, log => log.Contains("2"));
         Assert.Contains(logs, log => log.Contains("rules"));
 
-        // Cleanup
     }
 
     [Fact]
@@ -325,7 +315,6 @@ public class RulesTest : IDisposable
         // Act & Assert
         Assert.Throws<ArgumentNullException>(() => new Services.Rules(tempDir, null!));
 
-        // Cleanup
     }
 
     [Fact]
@@ -361,6 +350,5 @@ public class RulesTest : IDisposable
         Assert.Equal("CustomValue", response.Headers["X-Custom-Header"]);
         Assert.Contains("hello", response.Body);
 
-        // Cleanup
     }
 }
