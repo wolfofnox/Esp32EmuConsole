@@ -3,11 +3,12 @@ using Microsoft.Extensions.Logging;
 
 namespace Esp32EmuConsole.Tests;
 
-public class StaticResponseTest
+public class StaticResponseTest : IDisposable
 {
     private readonly Utilities.LogBuffer _logBuffer;
     private readonly Utilities.InMemoryLoggerProvider _provider;
     private readonly ILoggerFactory _loggerFactory;
+    private readonly List<string> _tempDirectories = new();
 
     public StaticResponseTest()
     {
@@ -23,6 +24,7 @@ public class StaticResponseTest
         // Create a temporary directory for testing
         var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
         Directory.CreateDirectory(tempDir);
+        _tempDirectories.Add(tempDir);
 
         // Create a rules.json file if rules are provided
         if (rules != null && rules.Count > 0)
@@ -33,6 +35,25 @@ public class StaticResponseTest
 
         var rulesService = new Services.Rules(tempDir, _loggerFactory.CreateLogger<Services.Rules>());
         return rulesService;
+    }
+
+    public void Dispose()
+    {
+        // Clean up all temporary directories
+        foreach (var tempDir in _tempDirectories)
+        {
+            try
+            {
+                if (Directory.Exists(tempDir))
+                {
+                    Directory.Delete(tempDir, true);
+                }
+            }
+            catch
+            {
+                // Ignore cleanup errors
+            }
+        }
     }
 
     [Fact]
@@ -78,7 +99,6 @@ public class StaticResponseTest
         var body = await reader.ReadToEndAsync();
         Assert.Equal("{\"message\":\"test response\"}", body);
 
-        rulesService.Dispose();
     }
 
     [Fact]
@@ -123,7 +143,6 @@ public class StaticResponseTest
         var logs = _logBuffer.Snapshot();
         Assert.Contains(logs, log => log.Contains("No response defined"));
 
-        rulesService.Dispose();
     }
 
     [Fact]
@@ -163,7 +182,6 @@ public class StaticResponseTest
         // Assert
         Assert.True(nextCalled, "Next middleware should have been called when no rule matches");
 
-        rulesService.Dispose();
     }
 
     [Theory]
@@ -211,7 +229,6 @@ public class StaticResponseTest
         var body = await reader.ReadToEndAsync();
         Assert.Equal($"Response for {method} {path}", body);
 
-        rulesService.Dispose();
     }
 
     [Fact]
@@ -256,7 +273,6 @@ public class StaticResponseTest
         Assert.Equal("CustomValue", context.Response.Headers["X-Custom-Header"].ToString());
         Assert.Equal("AnotherValue", context.Response.Headers["X-Another-Header"].ToString());
 
-        rulesService.Dispose();
     }
 
     [Fact]
@@ -296,7 +312,6 @@ public class StaticResponseTest
         // Assert
         Assert.Equal("text/plain", context.Response.ContentType);
 
-        rulesService.Dispose();
     }
 
     [Fact]
@@ -340,7 +355,6 @@ public class StaticResponseTest
         // Assert
         Assert.Equal("application/json", context.Response.ContentType);
 
-        rulesService.Dispose();
     }
 
     [Fact]
@@ -356,7 +370,6 @@ public class StaticResponseTest
             logger: _loggerFactory.CreateLogger<Middleware.StaticResponse>()
         ));
 
-        rulesService.Dispose();
     }
 
     [Fact]
@@ -383,6 +396,5 @@ public class StaticResponseTest
             logger: null!
         ));
 
-        rulesService.Dispose();
     }
 }

@@ -2,11 +2,12 @@ using Microsoft.Extensions.Logging;
 
 namespace Esp32EmuConsole.Tests;
 
-public class RulesTest
+public class RulesTest : IDisposable
 {
     private readonly Utilities.LogBuffer _logBuffer;
     private readonly Utilities.InMemoryLoggerProvider _provider;
     private readonly ILoggerFactory _loggerFactory;
+    private readonly List<string> _tempDirectories = new();
 
     public RulesTest()
     {
@@ -21,8 +22,27 @@ public class RulesTest
     {
         var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
         Directory.CreateDirectory(tempDir);
+        _tempDirectories.Add(tempDir);
         File.WriteAllText(Path.Combine(tempDir, "rules.json"), rulesJson);
         return tempDir;
+    }
+
+    public void Dispose()
+    {
+        // Clean up all temporary directories
+        foreach (var tempDir in _tempDirectories)
+        {
+            try
+            {
+                if (Directory.Exists(tempDir))
+                {
+                }
+            }
+            catch
+            {
+                // Ignore cleanup errors
+            }
+        }
     }
 
     [Fact]
@@ -52,7 +72,6 @@ public class RulesTest
         Assert.Equal(200, rulesService.RuleList[0].Response?.StatusCode);
 
         // Cleanup
-        Directory.Delete(tempDir, true);
     }
 
     [Fact]
@@ -70,7 +89,6 @@ public class RulesTest
         Assert.Empty(rulesService.RuleMap);
 
         // Cleanup
-        Directory.Delete(tempDir, true);
     }
 
     [Fact]
@@ -91,7 +109,6 @@ public class RulesTest
         Assert.Contains(logs, log => log.Contains("Error parsing"));
 
         // Cleanup
-        Directory.Delete(tempDir, true);
     }
 
     [Fact]
@@ -128,7 +145,6 @@ public class RulesTest
         Assert.Equal(201, rulesService.RuleMap["POST /api/users"]?.StatusCode);
 
         // Cleanup
-        Directory.Delete(tempDir, true);
     }
 
     [Fact]
@@ -155,7 +171,6 @@ public class RulesTest
         Assert.True(rulesService.RuleMap.ContainsKey("Get /test"));
 
         // Cleanup
-        Directory.Delete(tempDir, true);
     }
 
     [Fact]
@@ -180,7 +195,6 @@ public class RulesTest
         Assert.True(rulesService.RuleMap.ContainsKey("GET /test"));
 
         // Cleanup
-        Directory.Delete(tempDir, true);
     }
 
     [Fact]
@@ -205,7 +219,6 @@ public class RulesTest
         Assert.Null(rulesService.RuleMap["GET /test"]);
 
         // Cleanup
-        Directory.Delete(tempDir, true);
     }
 
     [Fact]
@@ -239,7 +252,6 @@ public class RulesTest
         Assert.True(rulesService.RuleMap.ContainsKey("GET /valid"));
 
         // Cleanup
-        Directory.Delete(tempDir, true);
     }
 
     [Fact]
@@ -264,7 +276,6 @@ public class RulesTest
         Assert.True(rulesService.RuleMap.ContainsKey("GET /test"));
 
         // Cleanup
-        Directory.Delete(tempDir, true);
     }
 
     [Fact]
@@ -301,7 +312,6 @@ public class RulesTest
         Assert.Contains(logs, log => log.Contains("rules"));
 
         // Cleanup
-        Directory.Delete(tempDir, true);
     }
 
     [Fact]
@@ -315,7 +325,6 @@ public class RulesTest
         Assert.Throws<ArgumentNullException>(() => new Services.Rules(tempDir, null!));
 
         // Cleanup
-        Directory.Delete(tempDir, true);
     }
 
     [Fact]
@@ -352,6 +361,5 @@ public class RulesTest
         Assert.Contains("hello", response.Body);
 
         // Cleanup
-        Directory.Delete(tempDir, true);
     }
 }
