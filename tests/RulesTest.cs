@@ -36,6 +36,7 @@ public class RulesTest : IDisposable
             {
                 if (Directory.Exists(tempDir))
                 {
+                    Directory.Delete(tempDir, true);
                 }
             }
             catch
