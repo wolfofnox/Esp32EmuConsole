@@ -71,5 +71,5 @@ Desktop.ini
 # Node.js and Vite
 node_modules/
 dist/
-./package.json
-./vite.config.js
+package.json
+vite.config.js

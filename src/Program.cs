@@ -8,7 +8,11 @@ using System.Text.RegularExpressions;
 var webConfig = new Services.WebServer.Configuration();
 var tuiConfig = new Tui.Configuration();
 
-var builder = WebApplication.CreateBuilder(args);
+var builder = WebApplication.CreateBuilder(new WebApplicationOptions
+{
+    Args = args,
+    ContentRootPath = AppContext.BaseDirectory
+});
 
 // Central in-memory log buffer and provider so TUI can show all logs.
 var appBuf = new Utilities.LogBuffer();
