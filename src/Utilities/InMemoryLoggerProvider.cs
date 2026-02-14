@@ -12,7 +12,8 @@ public enum LogFormat
     OmitCategory,
 }
 
-public record struct LogRoute(LogBuffer LogBuffer, string CategoryFilters, LogLevel MinimumLevel, LogFormat Format);
+public record struct LogRoute(string CategoryFilters, LogLevel MinimumLevel, LogFormat Format, LogBuffer? LogBuffer = null, TextWriter? Writer = null);
+
 
 public class InMemoryLoggerProvider : ILoggerProvider
 {
@@ -21,22 +22,22 @@ public class InMemoryLoggerProvider : ILoggerProvider
 
     private sealed class RouteEntry
     {
-        public LogBuffer LogBuffer { get; }
         public Regex[] Patterns { get; }
         public LogLevel MinimumLevel { get; }
         public LogFormat Format { get; }
         public bool IsMatchAll { get; }
         public bool IsFallback { get; }
+        public LogBuffer? LogBuffer { get; }
         public TextWriter? Writer { get; }
 
-        public RouteEntry(LogBuffer buf, Regex[] patterns, LogLevel minLevel, LogFormat fmt, bool isMatchAll, bool isFallback, TextWriter? writer)
+        public RouteEntry(Regex[] patterns, LogLevel minLevel, LogFormat fmt, bool isMatchAll, bool isFallback, LogBuffer? buf, TextWriter? writer)
         {
-            LogBuffer = buf;
             Patterns = patterns;
             MinimumLevel = minLevel;
             Format = fmt;
             IsMatchAll = isMatchAll;
             IsFallback = isFallback;
+            LogBuffer = buf;
             Writer = writer;
         }
     }
@@ -46,23 +47,16 @@ public class InMemoryLoggerProvider : ILoggerProvider
         _routes = routes ?? Array.Empty<LogRoute>();
         _entries = _routes.Select((r, i) =>
         {
-            var (buf, filters, min, fmt) = r;
+            var (filters, min, fmt, buf, writer) = r;
             var (regexes, isMatchAll, isFallback) = CompileFilters(filters);
 
-            TextWriter? writer = null;
-            try
+            if (buf == null && writer == null)
             {
-                var path = $"{i}.log";
-                var fs = File.Open(path, FileMode.Append, FileAccess.Write, FileShare.Read);
-                writer = new StreamWriter(fs) { AutoFlush = true };
-            }
-            catch
-            {
-                writer = null;
+                throw new ArgumentException($"Invalid route configuration at index {i}: At least one of LogBuffer or Writer must be provided.");
             }
 
-            return new RouteEntry(buf, regexes, min, fmt, isMatchAll, isFallback, writer);
-        }).ToArray();
+            return new RouteEntry(regexes, min, fmt, isMatchAll, isFallback, buf, writer);
+        }).Where(e => e != null).ToArray();
     }
 
     public ILogger CreateLogger(string categoryName)
@@ -123,7 +117,7 @@ public class InMemoryLoggerProvider : ILoggerProvider
                 if (logLevel < route.MinimumLevel) continue;
 
                 var outLine = route.Format == LogFormat.OmitCategory ? omit : full;
-                try { route.LogBuffer.Push(outLine); } catch { }
+                try { route.LogBuffer?.Push(outLine); } catch { }
                 try { route.Writer?.WriteLine(outLine); } catch { }
             }
         }
