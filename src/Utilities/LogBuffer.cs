@@ -31,4 +31,9 @@ public class LogBuffer
     {
         return _queue.ToArray();
     }
+
+    public void Clear()
+    {
+        while (_queue.TryDequeue(out _)) { }
+    }
 }
