@@ -4,19 +4,27 @@
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <GenerateAssemblyInfo>true</GenerateAssemblyInfo> 
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Terminal.Gui" Version="1.19.0" />
+    <PackageReference Include="Terminal.Gui" Version="2.0.0-develop.5027" />
     <PackageReference Include="Yarp.ReverseProxy" Version="2.3.0" />
-    <None Remove="package.json" />
-    <Content Update="package.json">
+  </ItemGroup>
+
+    <ItemGroup>
+    <None Remove="templates\**\*" />
+    <Content Update="templates\**\*">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>Always</CopyToPublishDirectory>
     </Content>
-    <None Remove="vite.config.js" />
-    <Content Remove="vite.config.js" />
-    <Content Include="vite.config.js">
+    <None Remove="templates\vite.config.js" />
+    <Content Include="templates\vite.config.js">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>Always</CopyToPublishDirectory>
+    </Content>
+    <None Remove="templates\index.html" />
+    <Content Include="templates\index.html">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>Always</CopyToPublishDirectory>
     </Content>

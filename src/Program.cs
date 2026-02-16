@@ -6,18 +6,29 @@ using System.Diagnostics;
 using System.Text.RegularExpressions;
 
 var webConfig = new Services.WebServer.Configuration();
+var tuiConfig = new Tui.Configuration();
 
-var builder = WebApplication.CreateBuilder(args);
+var builder = WebApplication.CreateBuilder(new WebApplicationOptions
+{
+    Args = args,
+    ContentRootPath = AppContext.BaseDirectory
+});
 
 // Central in-memory log buffer and provider so TUI can show all logs.
-var logBuffer = new Utilities.LogBuffer();
-builder.Services.AddSingleton(logBuffer);
+var appBuf = new Utilities.LogBuffer();
+var httpBuf = new Utilities.LogBuffer();
+var wsBuf = new Utilities.LogBuffer();
 builder.Logging.ClearProviders();
-builder.Logging.AddProvider(new Utilities.InMemoryLoggerProvider(logBuffer));
+builder.Logging.AddProvider(new Utilities.InMemoryLoggerProvider(new[]
+{
+    new Utilities.LogRoute("fallback", LogLevel.Trace, Utilities.LogFormat.Full, appBuf, new StreamWriter("app.log", append: true) { AutoFlush = true }),
+    new Utilities.LogRoute("Http*,HTTP*,http*", LogLevel.Trace, Utilities.LogFormat.Full, httpBuf),
+    new Utilities.LogRoute("WS*,Ws*,ws*,WebSocket*,websocket*", LogLevel.Trace, Utilities.LogFormat.Full, wsBuf),
+}));
 
 // Register configs
 builder.Services.AddSingleton(webConfig);
-
+builder.Services.AddSingleton(tuiConfig);
 // Register Vite in DI but do not start the process in constructor
 var cwd = Environment.CurrentDirectory;
 builder.Services.AddSingleton(sp => new Services.Vite(cwd, sp.GetRequiredService<ILogger<Services.Vite>>(), sp.GetRequiredService<ILoggerFactory>()));
@@ -52,18 +63,23 @@ await webServer.StartAsync();
 var tui = new Tui.TUI(app.Services);
 tui.Run();
 
-// while (true) {_logger.LogInformation("Esp32EmuConsole running..."); await Task.Delay(TimeSpan.FromMinutes(5));}
-
 //////// TODO move to master config class
 void EnsureConfigFiles()
 {
     _logger.LogInformation("Ensuring config files exist in working directory: {WorkingDirectory}", cwd);
+    
+    var templateDir = Path.Combine(AppContext.BaseDirectory, "templates");
+    if (!Directory.Exists(templateDir))
+    {
+        throw new DirectoryNotFoundException($"Template directory not found: {templateDir}");
+    }
+
     foreach (var f in new[] {"vite.config.js", "package.json"})
     {
         var dest = Path.Combine(cwd, f);
         if (File.Exists(dest)) continue;
 
-        var src = Path.Combine(AppContext.BaseDirectory, f);
+        var src = Path.Combine(templateDir, f);
         if (!File.Exists(src))
         {
             _logger.LogWarning("Template file not found: {Src}. Skipping copy for {File}.", src, f);

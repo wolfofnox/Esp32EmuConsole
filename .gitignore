@@ -28,7 +28,7 @@ publish/
 *.DotSettings.user
 
 # VS Code
-.vscode/
+.vscode/settings.json
 
 # NuGet
 packages/
@@ -40,7 +40,6 @@ project.fragment.lock.json
 # ASP.NET / Azure / secrets
 secrets.json
 local.settings.json
-appsettings.Development.json
 appsettings.Local.json
 
 # Test results / coverage
@@ -72,3 +71,5 @@ Desktop.ini
 # Node.js and Vite
 node_modules/
 dist/
+package.json
+vite.config.js
