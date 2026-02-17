@@ -21,9 +21,10 @@ var wsBuf = new Utilities.LogBuffer();
 builder.Logging.ClearProviders();
 builder.Logging.AddProvider(new Utilities.InMemoryLoggerProvider(new[]
 {
-    new Utilities.LogRoute("fallback", LogLevel.Trace, Utilities.LogFormat.Full, appBuf, new StreamWriter("app.log", append: true) { AutoFlush = true }),
-    new Utilities.LogRoute("Http*,HTTP*,http*", LogLevel.Trace, Utilities.LogFormat.Full, httpBuf),
-    new Utilities.LogRoute("WS*,Ws*,ws*,WebSocket*,websocket*", LogLevel.Trace, Utilities.LogFormat.Full, wsBuf),
+    new Utilities.LogRoute("fallback", LogLevel.Trace, Utilities.LogFormat.Full, appBuf),
+    new Utilities.LogRoute("Yarp.ReverseProxy.*", LogLevel.Warning, Utilities.LogFormat.Full, appBuf),
+    new Utilities.LogRoute("Http*,HTTP*,http*", LogLevel.Trace, Utilities.LogFormat.OmitCategory, httpBuf),
+    new Utilities.LogRoute("WS*,Ws*,ws*,WebSocket*,websocket*", LogLevel.Trace, Utilities.LogFormat.OmitCategory, wsBuf),
 }));
 
 // Register configs
