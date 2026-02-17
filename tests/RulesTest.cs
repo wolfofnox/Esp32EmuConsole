@@ -519,4 +519,82 @@ public class RulesTest : IDisposable
         Assert.True(hasUpdated);
         Assert.Equal("updated", updatedResp?.Body);
     }
+
+    [Fact]
+    public void WebSocketRules_AreLoadedCorrectly()
+    {
+        // Arrange
+        var rulesJson = @"[
+            {
+                ""Type"": ""websocket"",
+                ""Path"": ""/ws"",
+                ""Behavior"": ""echo""
+            },
+            {
+                ""Type"": ""websocket"",
+                ""Path"": ""/ws/sensor"",
+                ""Behavior"": ""static"",
+                ""WebSocketResponse"": ""{\u0022temp\u0022:25.5}""
+            }
+        ]";
+        var tempDir = CreateTempDirectoryWithRulesFile(rulesJson);
+
+        // Act
+        using var rulesService = new Services.Rules(tempDir, _loggerFactory.CreateLogger<Services.Rules>());
+
+        // Assert
+        var rules = rulesService.GetRules();
+        Assert.Equal(2, rules.Count);
+        
+        var echoRule = rules[0];
+        Assert.Equal("websocket", echoRule.Type);
+        Assert.Equal("/ws", echoRule.Path);
+        Assert.Equal("echo", echoRule.Behavior);
+        
+        var staticRule = rules[1];
+        Assert.Equal("websocket", staticRule.Type);
+        Assert.Equal("/ws/sensor", staticRule.Path);
+        Assert.Equal("static", staticRule.Behavior);
+        Assert.Contains("temp", staticRule.WebSocketResponse);
+    }
+
+    [Fact]
+    public void MixedRules_HttpAndWebSocket_AreLoadedCorrectly()
+    {
+        // Arrange
+        var rulesJson = @"[
+            {
+                ""Method"": ""GET"",
+                ""Uri"": ""/api/test"",
+                ""Response"": {
+                    ""StatusCode"": 200,
+                    ""Body"": ""http response""
+                }
+            },
+            {
+                ""Type"": ""websocket"",
+                ""Path"": ""/ws"",
+                ""Behavior"": ""echo""
+            }
+        ]";
+        var tempDir = CreateTempDirectoryWithRulesFile(rulesJson);
+
+        // Act
+        using var rulesService = new Services.Rules(tempDir, _loggerFactory.CreateLogger<Services.Rules>());
+
+        // Assert
+        var rules = rulesService.GetRules();
+        Assert.Equal(2, rules.Count);
+        
+        // Verify HTTP rule
+        var httpRule = rules[0];
+        Assert.Equal("GET", httpRule.Method);
+        Assert.Equal("/api/test", httpRule.Uri);
+        Assert.NotNull(httpRule.Response);
+        
+        // Verify WebSocket rule
+        var wsRule = rules[1];
+        Assert.Equal("websocket", wsRule.Type);
+        Assert.Equal("/ws", wsRule.Path);
+    }
 }
