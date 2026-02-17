@@ -56,20 +56,17 @@ public class Rules : IRules
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _rulesPath = Path.Combine(workingDirectory, "rules.json");
-        LoadRules();
         
-        int ruleCount;
-        _lock.EnterReadLock();
+        _lock.EnterWriteLock();
         try
         {
-            ruleCount = _ruleList.Count;
+            LoadRulesInternal();
+            _logger.LogInformation("Loaded {Count} rules from {RulesPath}", _ruleList.Count, _rulesPath);
         }
         finally
         {
-            _lock.ExitReadLock();
+            _lock.ExitWriteLock();
         }
-        
-        _logger.LogInformation("Loaded {Count} rules from {RulesPath}", ruleCount, _rulesPath);
 
         if (File.Exists(_rulesPath))
         {
@@ -89,48 +86,40 @@ public class Rules : IRules
         }
     }
 
-    private void LoadRules()
+    private void LoadRulesInternal()
     {
-        _lock.EnterWriteLock();
+        if (!File.Exists(_rulesPath))
+        {
+            _ruleList = new List<Rule>();
+            _ruleMap = new Dictionary<string, FixedResponse?>(StringComparer.OrdinalIgnoreCase);
+            return;
+        }
+
+        var jsonText = File.ReadAllText(_rulesPath);
+        List<Rule> rules;
         try
         {
-            if (!File.Exists(_rulesPath))
-            {
-                _ruleList = new List<Rule>();
-                _ruleMap = new Dictionary<string, FixedResponse?>(StringComparer.OrdinalIgnoreCase);
-                return;
-            }
-
-            var jsonText = File.ReadAllText(_rulesPath);
-            List<Rule> rules;
-            try
-            {
-                rules = JsonSerializer.Deserialize<List<Rule>>(jsonText, _jsonOptions) ?? new List<Rule>();
-            }
-            catch (JsonException ex)
-            {
-                _logger.LogError(ex, "Error parsing rules.json");
-                rules = new List<Rule>();
-            }
-
-            var map = new Dictionary<string, FixedResponse?>(StringComparer.OrdinalIgnoreCase);
-            foreach (var r in rules)
-            {
-                var path = r.Uri?.Trim();
-                if (string.IsNullOrWhiteSpace(path)) continue;
-                var method = r.Method?.Trim().ToUpperInvariant();
-                if (string.IsNullOrWhiteSpace(method)) method = "GET";
-                var key = MakeKey(method, path);
-                map[key] = r.Response;
-            }
-
-            _ruleList = rules;
-            _ruleMap = map;
+            rules = JsonSerializer.Deserialize<List<Rule>>(jsonText, _jsonOptions) ?? new List<Rule>();
         }
-        finally
+        catch (JsonException ex)
         {
-            _lock.ExitWriteLock();
+            _logger.LogError(ex, "Error parsing rules.json");
+            rules = new List<Rule>();
         }
+
+        var map = new Dictionary<string, FixedResponse?>(StringComparer.OrdinalIgnoreCase);
+        foreach (var r in rules)
+        {
+            var path = r.Uri?.Trim();
+            if (string.IsNullOrWhiteSpace(path)) continue;
+            var method = r.Method?.Trim().ToUpperInvariant();
+            if (string.IsNullOrWhiteSpace(method)) method = "GET";
+            var key = MakeKey(method, path);
+            map[key] = r.Response;
+        }
+
+        _ruleList = rules;
+        _ruleMap = map;
     }
 
     public IReadOnlyList<Rule> GetRules()
@@ -162,20 +151,16 @@ public class Rules : IRules
 
     public void ReloadRules()
     {
-        LoadRules();
-        
-        int ruleCount;
-        _lock.EnterReadLock();
+        _lock.EnterWriteLock();
         try
         {
-            ruleCount = _ruleList.Count;
+            LoadRulesInternal();
+            _logger.LogInformation("Reloaded {Count} rules from {RulesPath}", _ruleList.Count, _rulesPath);
         }
         finally
         {
-            _lock.ExitReadLock();
+            _lock.ExitWriteLock();
         }
-        
-        _logger.LogInformation("Reloaded {Count} rules from {RulesPath}", ruleCount, _rulesPath);
     }
 
     private static string MakeKey(string method, string path) => $"{method.Trim().ToUpperInvariant()} {(path.Trim().StartsWith("/") ? path.Trim() : "/" + path.Trim())}";
@@ -183,6 +168,6 @@ public class Rules : IRules
     public void Dispose()
     {
         _watcher?.Dispose();
-        _lock?.Dispose();
+        _lock.Dispose();
     }
 }
