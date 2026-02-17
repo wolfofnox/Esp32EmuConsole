@@ -16,8 +16,7 @@ public class StaticResponse
 
     public async Task InvokeAsync(HttpContext ctx)
     {
-        var key = MakeKey(ctx.Request.Method, ctx.Request.Path.ToString());
-        if (_ruleService.RuleMap.TryGetValue(key, out var resp))
+        if (_ruleService.TryGetResponse(ctx.Request.Method, ctx.Request.Path.ToString(), out var resp))
         {
             if (resp == null)
             {
@@ -44,6 +43,4 @@ public class StaticResponse
 
         await _next(ctx);
     }
-
-    private static string MakeKey(string method, string path) => $"{method.Trim().ToUpperInvariant()} {(path.Trim().StartsWith("/") ? path.Trim() : "/" + path.Trim())}";
 }
