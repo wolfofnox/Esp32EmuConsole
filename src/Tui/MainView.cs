@@ -46,9 +46,9 @@ class MainView : Runnable
         _menu = CreateMenu();
 
         // create basic empty views for logs, clients and stats
-        _appLogFrame = CreateLogFrame("App Logs", _appLogBuffer);
-        _httpLogFrame = CreateLogFrame("HTTP Logs", _httpLogBuffer);
-        _wsLogFrame = CreateLogFrame("WebSocket Logs", _wsLogBuffer);
+        _appLogFrame = CreateLogFrame("App Logs", _appLogBuffer, out _appLogView);
+        _httpLogFrame = CreateLogFrame("HTTP Logs", _httpLogBuffer, out _httpLogView);
+        _wsLogFrame = CreateLogFrame("WebSocket Logs", _wsLogBuffer, out _wsLogView);
         _clientsFrame = CreateClientsFrame();
         _statsFrame = CreateStatsFrame();
         _mainWindow.Add(_appLogFrame, _httpLogFrame, _wsLogFrame, _clientsFrame, _statsFrame);
@@ -57,7 +57,7 @@ class MainView : Runnable
         UpdateLayout();
     }
 
-    private FrameView CreateLogFrame(string title, LogBuffer logBuffer)
+    private FrameView CreateLogFrame(string title, LogBuffer logBuffer, out TextView textView)
     {
         var frame = new FrameView()
         {
@@ -79,10 +79,7 @@ class MainView : Runnable
             Height = Dim.Fill()
         };
         
-        // Store references to TextViews for clearing
-        if (title == "App Logs") _appLogView = tv;
-        else if (title == "HTTP Logs") _httpLogView = tv;
-        else if (title == "WebSocket Logs") _wsLogView = tv;
+        textView = tv;
         
         // Subscribe to new log events to update the view with live data
         logBuffer.NewLog += (line) =>
@@ -257,17 +254,8 @@ class MainView : Runnable
     private void ClearLogViews()
     {
         // Clear text in each log TextView
-        if (_appLogView != null)
-        {
-            _appLogView.Text = "";
-        }
-        if (_httpLogView != null)
-        {
-            _httpLogView.Text = "";
-        }
-        if (_wsLogView != null)
-        {
-            _wsLogView.Text = "";
-        }
+        if (_appLogView != null) _appLogView.Text = "";
+        if (_httpLogView != null) _httpLogView.Text = "";
+        if (_wsLogView != null) _wsLogView.Text = "";
     }
 }
