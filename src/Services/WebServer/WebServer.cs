@@ -6,7 +6,7 @@ class WebServer
 {
     private readonly ILogger<WebServer> _logger;
     private readonly Services.Vite _vite;
-    private readonly Services.Rules _rules;
+    private readonly Services.IRules _rules;
     private readonly Services.WebSocketService _wsService;
     private readonly Services.WebServer.Configuration _config;
     private readonly WebApplication _app;
@@ -17,7 +17,7 @@ class WebServer
         _app = app ?? throw new ArgumentNullException(nameof(app));
         _logger = _app.Services.GetRequiredService<ILogger<WebServer>>();
         _vite = _app.Services.GetRequiredService<Services.Vite>();
-        _rules = _app.Services.GetRequiredService<Services.Rules>();
+        _rules = _app.Services.GetRequiredService<Services.IRules>();
         _wsService = _app.Services.GetRequiredService<Services.WebSocketService>();
         _config = _app.Services.GetRequiredService<Services.WebServer.Configuration>();
     }
