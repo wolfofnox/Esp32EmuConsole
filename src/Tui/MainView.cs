@@ -14,6 +14,9 @@ class MainView : Runnable
     private FrameView? _wsLogFrame;
     private FrameView? _clientsFrame;
     private FrameView? _statsFrame;
+    private TextView? _appLogView;
+    private TextView? _httpLogView;
+    private TextView? _wsLogView;
     private readonly Window _mainWindow;
     private readonly Configuration _config;
     private readonly ILogger<MainView> _logger;
@@ -75,6 +78,11 @@ class MainView : Runnable
             Width = Dim.Fill(),
             Height = Dim.Fill()
         };
+        
+        // Store references to TextViews for clearing
+        if (title == "App Logs") _appLogView = tv;
+        else if (title == "HTTP Logs") _httpLogView = tv;
+        else if (title == "WebSocket Logs") _wsLogView = tv;
         
         // Subscribe to new log events to update the view with live data
         logBuffer.NewLog += (line) =>
@@ -156,7 +164,16 @@ class MainView : Runnable
                 // new MenuItem((_config.tabView ? "[x] " : "[ ] ") + "_Tab view", "", () => { _config.tabView = true; _config.splitView = false; UpdateLayout(); RebuildMenu(); }),
                 // new MenuItem((_config.splitView ? "[x] " : "[ ] ") + "S_plit view", "", () => { _config.splitView = true; _config.tabView = false; UpdateLayout(); RebuildMenu(); }),
                 null,
-                new MenuItem("Clea_r logs", "", () => { _logger.LogWarning("Clear logs action triggered - not implemented yet.");}),
+                new MenuItem("Clea_r logs", "", () => 
+                { 
+                    _appLogBuffer.Clear();
+                    _httpLogBuffer.Clear();
+                    _wsLogBuffer.Clear();
+                    
+                    // Clear the text in all visible log views
+                    ClearLogViews();
+                    _logger.LogInformation("All logs cleared by user.");
+                }),
             }),
         })
         {
@@ -234,6 +251,23 @@ class MainView : Runnable
             visibleBottom[1].Y = Pos.Percent(bottomStart);
             visibleBottom[1].Width = Dim.Percent(50);
             visibleBottom[1].Height = Dim.Fill();
+        }
+    }
+
+    private void ClearLogViews()
+    {
+        // Clear text in each log TextView
+        if (_appLogView != null)
+        {
+            _appLogView.Text = "";
+        }
+        if (_httpLogView != null)
+        {
+            _httpLogView.Text = "";
+        }
+        if (_wsLogView != null)
+        {
+            _wsLogView.Text = "";
         }
     }
 }
