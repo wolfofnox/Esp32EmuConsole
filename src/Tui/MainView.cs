@@ -17,10 +17,17 @@ class MainView : Runnable
     private readonly Window _mainWindow;
     private readonly Configuration _config;
     private readonly ILogger<MainView> _logger;
-    public MainView(Configuration config, ILogger<MainView> logger)
+    private readonly LogBuffer _appLogBuffer;
+    private readonly LogBuffer _httpLogBuffer;
+    private readonly LogBuffer _wsLogBuffer;
+    
+    public MainView(Configuration config, ILogger<MainView> logger, LogBuffer appLogBuffer, LogBuffer httpLogBuffer, LogBuffer wsLogBuffer)
     {
         _config = config ?? throw new ArgumentNullException(nameof(config));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _appLogBuffer = appLogBuffer ?? throw new ArgumentNullException(nameof(appLogBuffer));
+        _httpLogBuffer = httpLogBuffer ?? throw new ArgumentNullException(nameof(httpLogBuffer));
+        _wsLogBuffer = wsLogBuffer ?? throw new ArgumentNullException(nameof(wsLogBuffer));
 
         _mainWindow = new Window()
         {
@@ -36,9 +43,9 @@ class MainView : Runnable
         _menu = CreateMenu();
 
         // create basic empty views for logs, clients and stats
-        _appLogFrame = CreateLogFrame("App Logs");
-        _httpLogFrame = CreateLogFrame("HTTP Logs");
-        _wsLogFrame = CreateLogFrame("WebSocket Logs");
+        _appLogFrame = CreateLogFrame("App Logs", _appLogBuffer);
+        _httpLogFrame = CreateLogFrame("HTTP Logs", _httpLogBuffer);
+        _wsLogFrame = CreateLogFrame("WebSocket Logs", _wsLogBuffer);
         _clientsFrame = CreateClientsFrame();
         _statsFrame = CreateStatsFrame();
         _mainWindow.Add(_appLogFrame, _httpLogFrame, _wsLogFrame, _clientsFrame, _statsFrame);
@@ -47,7 +54,7 @@ class MainView : Runnable
         UpdateLayout();
     }
 
-    private FrameView CreateLogFrame(string title)
+    private FrameView CreateLogFrame(string title, LogBuffer logBuffer)
     {
         var frame = new FrameView()
         {
@@ -62,12 +69,25 @@ class MainView : Runnable
             ReadOnly = true,
             WordWrap = false,
             Multiline = true,
-            Text = "",
+            Text = string.Join("\n", logBuffer.Snapshot()),
             X = 0,
             Y = 0,
             Width = Dim.Fill(),
             Height = Dim.Fill()
         };
+        
+        // Subscribe to new log events to update the view with live data
+        logBuffer.NewLog += (line) =>
+        {
+            if (frame.Visible && App != null)
+            {
+                App.Invoke(() =>
+                {
+                    tv.Text += "\n" + line;
+                });
+            }
+        };
+        
         frame.Add(tv);
         return frame;
     }

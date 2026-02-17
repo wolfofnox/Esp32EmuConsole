@@ -29,6 +29,11 @@ builder.Logging.AddProvider(new Utilities.InMemoryLoggerProvider(new[]
 // Register configs
 builder.Services.AddSingleton(webConfig);
 builder.Services.AddSingleton(tuiConfig);
+
+// Register LogBuffers with keys so TUI can access them
+builder.Services.AddKeyedSingleton("AppLogBuffer", appBuf);
+builder.Services.AddKeyedSingleton("HttpLogBuffer", httpBuf);
+builder.Services.AddKeyedSingleton("WsLogBuffer", wsBuf);
 // Register Vite in DI but do not start the process in constructor
 var cwd = Environment.CurrentDirectory;
 builder.Services.AddSingleton(sp => new Services.Vite(cwd, sp.GetRequiredService<ILogger<Services.Vite>>(), sp.GetRequiredService<ILoggerFactory>()));

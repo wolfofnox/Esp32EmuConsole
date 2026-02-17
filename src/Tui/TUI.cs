@@ -34,7 +34,17 @@ public class TUI
 
         try
         {
-            var mainView = new MainView(_config, _services.GetRequiredService<ILogger<MainView>>());
+            var appLogBuffer = _services.GetRequiredKeyedService<LogBuffer>("AppLogBuffer");
+            var httpLogBuffer = _services.GetRequiredKeyedService<LogBuffer>("HttpLogBuffer");
+            var wsLogBuffer = _services.GetRequiredKeyedService<LogBuffer>("WsLogBuffer");
+            
+            var mainView = new MainView(
+                _config, 
+                _services.GetRequiredService<ILogger<MainView>>(),
+                appLogBuffer,
+                httpLogBuffer,
+                wsLogBuffer
+            );
             _app.Run(mainView);
         }
         finally
@@ -42,77 +52,6 @@ public class TUI
             _logger.LogInformation("TUI is shutting down.");
             _app.Dispose();
         }
-
-        // var topLabel = new Label("Terminal.Gui Application - Press Alt for Menu")
-        // {
-        //     X = 0,
-        //     Y = 0,
-        //     Width = Dim.Fill(),
-        //     Height = 1,
-        //     ColorScheme = new ColorScheme()
-        //     {
-        //         Normal = Application.Driver.MakeAttribute(Color.Black, Color.Gray)
-        //     }
-        // };
-        // top.Add(topLabel);
-
-
-        // var textView = new TextView()
-        // {
-        //     ReadOnly = true,
-        //     Width = Dim.Fill(),
-        //     Height = Dim.Fill()
-        // };
-
-        // if (_logBuffer is null)
-        // {
-        //     textView.Text = "No LogBuffer registered in services.";
-        //     return;
-        // }
-
-        // _logBuffer.NewLog += handler;
-
-        // win.Add(textView);
-
-        // var label = new Label("Keypress: ")
-        // {
-        //     X = 0,
-        //     Y = Pos.AnchorEnd(1),
-        //     Width = Dim.Fill(),
-        //     Height = 1,
-        //     ColorScheme = new ColorScheme()
-        //     {
-        //         Normal = Application.Driver.MakeAttribute(Color.Black, Color.Gray)
-        //     }
-        // };
-
-        // top.Add(label);
-
-        // // textView.SetFocus();
-
-        // top.KeyPress += (e) =>
-        // {
-        //     if (e.KeyEvent.Key == (Key.CtrlMask | Key.C))
-        //     {
-        //         e.Handled = true;
-        //         Application.RequestStop();
-        //     }
-        //     label.Text = $"Keypress (top): {e.KeyEvent.Key}";
-        //     Application.Refresh();
-        // };
-
-        // textView.KeyPress += (e) =>
-        // {
-        //     if (e.KeyEvent.Key == Key.G)
-        //     {
-        //         e.Handled = true;
-        //         MessageBox.Query(50, 7, "Key Pressed", "You pressed 'G' in the TextView!", "Ok");
-        //     }
-        //     label.Text = $"Keypress (textView): {e.KeyEvent.Key}";
-        // };
-
-        // Application.Run();
-        // Application.Shutdown();
 
         _logger.LogInformation("TUI exited.");
     }
