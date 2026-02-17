@@ -81,7 +81,7 @@ class MainView : Runnable
         
         textView = tv;
         
-        // Subscribe to new log events to update the view with live data
+        // Subscribe to new log events to update the view with live data when visible
         logBuffer.NewLog += (line) =>
         {
             if (frame.Visible && App != null)
@@ -89,6 +89,22 @@ class MainView : Runnable
                 App.Invoke(() =>
                 {
                     tv.Text += "\n" + line;
+                    // Autoscroll to the end
+                    tv.MoveEnd();
+                });
+            }
+        };
+        
+        // Subscribe to visibility changes to refresh with snapshot when toggled on
+        frame.VisibleChanged += (sender, args) =>
+        {
+            if (frame.Visible && App != null)
+            {
+                App.Invoke(() =>
+                {
+                    tv.Text = string.Join("\n", logBuffer.Snapshot());
+                    // Autoscroll to the end
+                    tv.MoveEnd();
                 });
             }
         };
