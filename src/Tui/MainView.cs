@@ -14,13 +14,23 @@ class MainView : Runnable
     private FrameView? _wsLogFrame;
     private FrameView? _clientsFrame;
     private FrameView? _statsFrame;
+    private TextView? _appLogView;
+    private TextView? _httpLogView;
+    private TextView? _wsLogView;
     private readonly Window _mainWindow;
     private readonly Configuration _config;
     private readonly ILogger<MainView> _logger;
-    public MainView(Configuration config, ILogger<MainView> logger)
+    private readonly LogBuffer _appLogBuffer;
+    private readonly LogBuffer _httpLogBuffer;
+    private readonly LogBuffer _wsLogBuffer;
+    
+    public MainView(Configuration config, ILogger<MainView> logger, LogBuffer appLogBuffer, LogBuffer httpLogBuffer, LogBuffer wsLogBuffer)
     {
         _config = config ?? throw new ArgumentNullException(nameof(config));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _appLogBuffer = appLogBuffer ?? throw new ArgumentNullException(nameof(appLogBuffer));
+        _httpLogBuffer = httpLogBuffer ?? throw new ArgumentNullException(nameof(httpLogBuffer));
+        _wsLogBuffer = wsLogBuffer ?? throw new ArgumentNullException(nameof(wsLogBuffer));
 
         _mainWindow = new Window()
         {
@@ -36,9 +46,9 @@ class MainView : Runnable
         _menu = CreateMenu();
 
         // create basic empty views for logs, clients and stats
-        _appLogFrame = CreateLogFrame("App Logs");
-        _httpLogFrame = CreateLogFrame("HTTP Logs");
-        _wsLogFrame = CreateLogFrame("WebSocket Logs");
+        _appLogFrame = CreateLogFrame("App Logs", _appLogBuffer, out _appLogView);
+        _httpLogFrame = CreateLogFrame("HTTP Logs", _httpLogBuffer, out _httpLogView);
+        _wsLogFrame = CreateLogFrame("WebSocket Logs", _wsLogBuffer, out _wsLogView);
         _clientsFrame = CreateClientsFrame();
         _statsFrame = CreateStatsFrame();
         _mainWindow.Add(_appLogFrame, _httpLogFrame, _wsLogFrame, _clientsFrame, _statsFrame);
@@ -47,7 +57,7 @@ class MainView : Runnable
         UpdateLayout();
     }
 
-    private FrameView CreateLogFrame(string title)
+    private FrameView CreateLogFrame(string title, LogBuffer logBuffer, out TextView textView)
     {
         var frame = new FrameView()
         {
@@ -62,12 +72,43 @@ class MainView : Runnable
             ReadOnly = true,
             WordWrap = false,
             Multiline = true,
-            Text = "",
+            Text = string.Join("\n", logBuffer.Snapshot()),
             X = 0,
             Y = 0,
             Width = Dim.Fill(),
             Height = Dim.Fill()
         };
+        
+        textView = tv;
+        
+        // Subscribe to new log events to update the view with live data when visible
+        logBuffer.NewLog += (line) =>
+        {
+            if (frame.Visible && App != null)
+            {
+                App.Invoke(() =>
+                {
+                    tv.Text += "\n" + line;
+                    // Autoscroll to the end
+                    tv.MoveEnd();
+                });
+            }
+        };
+        
+        // Subscribe to visibility changes to refresh with snapshot when toggled on
+        frame.VisibleChanged += (sender, args) =>
+        {
+            if (frame.Visible && App != null)
+            {
+                App.Invoke(() =>
+                {
+                    tv.Text = string.Join("\n", logBuffer.Snapshot());
+                    // Autoscroll to the end
+                    tv.MoveEnd();
+                });
+            }
+        };
+        
         frame.Add(tv);
         return frame;
     }
@@ -136,7 +177,16 @@ class MainView : Runnable
                 // new MenuItem((_config.tabView ? "[x] " : "[ ] ") + "_Tab view", "", () => { _config.tabView = true; _config.splitView = false; UpdateLayout(); RebuildMenu(); }),
                 // new MenuItem((_config.splitView ? "[x] " : "[ ] ") + "S_plit view", "", () => { _config.splitView = true; _config.tabView = false; UpdateLayout(); RebuildMenu(); }),
                 null,
-                new MenuItem("Clea_r logs", "", () => { _logger.LogWarning("Clear logs action triggered - not implemented yet.");}),
+                new MenuItem("Clea_r logs", "", () => 
+                { 
+                    _appLogBuffer.Clear();
+                    _httpLogBuffer.Clear();
+                    _wsLogBuffer.Clear();
+                    
+                    // Clear the text in all visible log views
+                    ClearLogViews();
+                    _logger.LogInformation("All logs cleared by user.");
+                }),
             }),
         })
         {
@@ -215,5 +265,13 @@ class MainView : Runnable
             visibleBottom[1].Width = Dim.Percent(50);
             visibleBottom[1].Height = Dim.Fill();
         }
+    }
+
+    private void ClearLogViews()
+    {
+        // Clear text in each log TextView
+        if (_appLogView != null) _appLogView.Text = "";
+        if (_httpLogView != null) _httpLogView.Text = "";
+        if (_wsLogView != null) _wsLogView.Text = "";
     }
 }
