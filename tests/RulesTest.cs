@@ -399,12 +399,31 @@ public class RulesTest : IDisposable
                 {
                     while (!shouldStop)
                     {
-                        // Read using TryGetResponse
-                        rulesService.TryGetResponse("GET", "/test1", out var resp1);
-                        rulesService.TryGetResponse("GET", "/test2", out var resp2);
+                        // Read using TryGetResponse and verify data integrity
+                        var found1 = rulesService.TryGetResponse("GET", "/test1", out var resp1);
+                        if (found1)
+                        {
+                            if (resp1 == null || resp1.StatusCode != 200)
+                            {
+                                throw new InvalidOperationException("Invalid response data for /test1");
+                            }
+                        }
                         
-                        // Read using GetRules
+                        var found2 = rulesService.TryGetResponse("GET", "/test2", out var resp2);
+                        if (found2)
+                        {
+                            if (resp2 == null || resp2.StatusCode != 201)
+                            {
+                                throw new InvalidOperationException("Invalid response data for /test2");
+                            }
+                        }
+                        
+                        // Read using GetRules and verify list integrity
                         var rules = rulesService.GetRules();
+                        if (rules.Count != 2)
+                        {
+                            throw new InvalidOperationException($"Expected 2 rules but got {rules.Count}");
+                        }
                         
                         // Small delay to allow other threads to run
                         Thread.Sleep(1);

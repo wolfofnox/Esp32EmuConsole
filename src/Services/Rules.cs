@@ -137,10 +137,10 @@ public class Rules : IRules
 
     public bool TryGetResponse(string method, string path, out FixedResponse? response)
     {
-        var key = MakeKey(method, path);
         _lock.EnterReadLock();
         try
         {
+            var key = MakeKey(method, path);
             return _ruleMap.TryGetValue(key, out response);
         }
         finally
