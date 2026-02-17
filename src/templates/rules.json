@@ -1,29 +1,44 @@
 [
     {
-        "uri": "/api/hello", // (Required) URI to match
-        "method": "GET", // (Required) HTTP method to match
-        "response": { // (Optional) response, if not present, response asked at runtime
-            "statusCode": 200, // (Required) HTTP status code
-            "contentType": "text/plain", // (Optional) Content-Type header
-            "headers": { // (Optional) Additional headers
+        "uri": "/api/hello",
+        "method": "GET",
+        "type": "http",
+        "response": {
+            "statusCode": 200,
+            "contentType": "text/plain",
+            "headers": {
                 "Cache-Control": "no-cache"
             },
-            "body": "Hello, World!" // (Optional) Response body
+            "body": "Hello, World!"
         }
     },
-    { // Example of a rule without a predefined response
+    {
         "uri": "/api/noresp",
-        "method": "GET"
+        "method": "GET",
+        "type": "http"
     },
-    { // WebSocket echo example - echoes back received messages
+    {
+        "uri": "/ws",
         "type": "websocket",
-        "path": "/ws",
         "behavior": "echo"
     },
-    { // WebSocket static response example - returns a fixed message
+    {
+        "uri": "/ws/sensor",
         "type": "websocket",
-        "path": "/ws/sensor",
         "behavior": "static",
         "webSocketResponse": "{\"temp\":25.5,\"humidity\":60}"
+    },
+    {
+        "uri": "/ws/interval",
+        "type": "websocket",
+        "behavior": "interval",
+        "intervalMs": 1000,
+        "webSocketResponse": "{\"timestamp\":\"{{now}}\"}"
+    },
+    {
+        "uri": "/ws/binary",
+        "type": "websocket",
+        "behavior": "binary",
+        "webSocketResponse": "48656C6C6F20576F726C64"
     }
 ]

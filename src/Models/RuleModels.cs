@@ -16,7 +16,7 @@ public record Rule
     public string? Method { get; init; }
     public FixedResponse? Response { get; init; }
     public string? Type { get; init; }
-    public string? Path { get; init; }
     public string? Behavior { get; init; }
     public string? WebSocketResponse { get; init; }
+    public int? IntervalMs { get; init; }
 }

@@ -527,12 +527,12 @@ public class RulesTest : IDisposable
         var rulesJson = @"[
             {
                 ""Type"": ""websocket"",
-                ""Path"": ""/ws"",
+                ""Uri"": ""/ws"",
                 ""Behavior"": ""echo""
             },
             {
                 ""Type"": ""websocket"",
-                ""Path"": ""/ws/sensor"",
+                ""Uri"": ""/ws/sensor"",
                 ""Behavior"": ""static"",
                 ""WebSocketResponse"": ""{\u0022temp\u0022:25.5}""
             }
@@ -548,12 +548,12 @@ public class RulesTest : IDisposable
         
         var echoRule = rules[0];
         Assert.Equal("websocket", echoRule.Type);
-        Assert.Equal("/ws", echoRule.Path);
+        Assert.Equal("/ws", echoRule.Uri);
         Assert.Equal("echo", echoRule.Behavior);
         
         var staticRule = rules[1];
         Assert.Equal("websocket", staticRule.Type);
-        Assert.Equal("/ws/sensor", staticRule.Path);
+        Assert.Equal("/ws/sensor", staticRule.Uri);
         Assert.Equal("static", staticRule.Behavior);
         Assert.Contains("temp", staticRule.WebSocketResponse);
     }
@@ -573,7 +573,7 @@ public class RulesTest : IDisposable
             },
             {
                 ""Type"": ""websocket"",
-                ""Path"": ""/ws"",
+                ""Uri"": ""/ws"",
                 ""Behavior"": ""echo""
             }
         ]";
@@ -595,6 +595,6 @@ public class RulesTest : IDisposable
         // Verify WebSocket rule
         var wsRule = rules[1];
         Assert.Equal("websocket", wsRule.Type);
-        Assert.Equal("/ws", wsRule.Path);
+        Assert.Equal("/ws", wsRule.Uri);
     }
 }

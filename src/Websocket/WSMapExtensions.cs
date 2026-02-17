@@ -8,19 +8,16 @@ public static class WSMapExtensions
 {
     public static void MapWs(this IApplicationBuilder app, WebSocketService wsService)
     {
-        app.Map("/ws", builder =>
-        {
-            builder.Run(async ctx =>
+        app.UseWhen(
+            context => context.WebSockets.IsWebSocketRequest,
+            builder =>
             {
-                if (!ctx.WebSockets.IsWebSocketRequest)
+                builder.Run(async ctx =>
                 {
-                    ctx.Response.StatusCode = 400; 
-                    return;
-                }
-
-                using var ws = await ctx.WebSockets.AcceptWebSocketAsync();
-                await wsService.HandleConnectionAsync(ws, ctx.Request.Path.Value ?? "/ws", ctx.RequestAborted);
+                    var path = ctx.Request.Path.Value ?? "/";
+                    using var ws = await ctx.WebSockets.AcceptWebSocketAsync();
+                    await wsService.HandleConnectionAsync(ws, path, ctx.RequestAborted);
+                });
             });
-        });
     }
 }

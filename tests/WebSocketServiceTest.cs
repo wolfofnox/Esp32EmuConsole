@@ -55,7 +55,7 @@ public class WebSocketServiceTest : IDisposable
         var tempDir = CreateTempDirectoryWithRulesFile("[]");
         using var rules = new Services.Rules(tempDir, _loggerFactory.CreateLogger<Services.Rules>());
 
-        Assert.Throws<ArgumentNullException>(() => new Services.WebSocketService(null!, rules));
+        Assert.Throws<ArgumentNullException>(() => new Services.WebSocketService(null!, _loggerFactory, rules));
     }
 
     [Fact]
@@ -63,7 +63,7 @@ public class WebSocketServiceTest : IDisposable
     {
         var logger = _loggerFactory.CreateLogger<Services.WebSocketService>();
 
-        Assert.Throws<ArgumentNullException>(() => new Services.WebSocketService(logger, null!));
+        Assert.Throws<ArgumentNullException>(() => new Services.WebSocketService(logger, _loggerFactory, null!));
     }
 
     [Fact]
@@ -73,7 +73,7 @@ public class WebSocketServiceTest : IDisposable
         var rulesJson = @"[]";
         var tempDir = CreateTempDirectoryWithRulesFile(rulesJson);
         using var rules = new Services.Rules(tempDir, _loggerFactory.CreateLogger<Services.Rules>());
-        var wsService = new Services.WebSocketService(_loggerFactory.CreateLogger<Services.WebSocketService>(), rules);
+        var wsService = new Services.WebSocketService(_loggerFactory.CreateLogger<Services.WebSocketService>(), _loggerFactory, rules);
 
         var mockWebSocket = new MockWebSocket();
         _logBuffer.Clear();
@@ -93,7 +93,7 @@ public class WebSocketServiceTest : IDisposable
 
         // Assert
         var logs = _logBuffer.Snapshot();
-        Assert.Contains(logs, log => log.Contains("WebSocket connection established") && log.Contains("/ws"));
+        Assert.Contains(logs, log => log.Contains("Connection opened") && log.Contains("/ws"));
     }
 
     [Fact]
@@ -103,7 +103,7 @@ public class WebSocketServiceTest : IDisposable
         var rulesJson = @"[]";
         var tempDir = CreateTempDirectoryWithRulesFile(rulesJson);
         using var rules = new Services.Rules(tempDir, _loggerFactory.CreateLogger<Services.Rules>());
-        var wsService = new Services.WebSocketService(_loggerFactory.CreateLogger<Services.WebSocketService>(), rules);
+        var wsService = new Services.WebSocketService(_loggerFactory.CreateLogger<Services.WebSocketService>(), _loggerFactory, rules);
 
         var mockWebSocket = new MockWebSocket();
 
@@ -134,13 +134,13 @@ public class WebSocketServiceTest : IDisposable
         var rulesJson = @"[
             {
                 ""type"": ""websocket"",
-                ""path"": ""/ws"",
+                ""uri"": ""/ws"",
                 ""behavior"": ""echo""
             }
         ]";
         var tempDir = CreateTempDirectoryWithRulesFile(rulesJson);
         using var rules = new Services.Rules(tempDir, _loggerFactory.CreateLogger<Services.Rules>());
-        var wsService = new Services.WebSocketService(_loggerFactory.CreateLogger<Services.WebSocketService>(), rules);
+        var wsService = new Services.WebSocketService(_loggerFactory.CreateLogger<Services.WebSocketService>(), _loggerFactory, rules);
 
         var mockWebSocket = new MockWebSocket();
         mockWebSocket.ReceivedMessages.Add("test message");
@@ -171,14 +171,14 @@ public class WebSocketServiceTest : IDisposable
         var rulesJson = @"[
             {
                 ""type"": ""websocket"",
-                ""path"": ""/ws/sensor"",
+                ""uri"": ""/ws/sensor"",
                 ""behavior"": ""static"",
                 ""webSocketResponse"": ""{\u0022temp\u0022:25.5}""
             }
         ]";
         var tempDir = CreateTempDirectoryWithRulesFile(rulesJson);
         using var rules = new Services.Rules(tempDir, _loggerFactory.CreateLogger<Services.Rules>());
-        var wsService = new Services.WebSocketService(_loggerFactory.CreateLogger<Services.WebSocketService>(), rules);
+        var wsService = new Services.WebSocketService(_loggerFactory.CreateLogger<Services.WebSocketService>(), _loggerFactory, rules);
 
         var mockWebSocket = new MockWebSocket();
         mockWebSocket.ReceivedMessages.Add("any message");
@@ -210,7 +210,7 @@ public class WebSocketServiceTest : IDisposable
         var rulesJson = @"[]";
         var tempDir = CreateTempDirectoryWithRulesFile(rulesJson);
         using var rules = new Services.Rules(tempDir, _loggerFactory.CreateLogger<Services.Rules>());
-        var wsService = new Services.WebSocketService(_loggerFactory.CreateLogger<Services.WebSocketService>(), rules);
+        var wsService = new Services.WebSocketService(_loggerFactory.CreateLogger<Services.WebSocketService>(), _loggerFactory, rules);
 
         var mockWebSocket = new MockWebSocket();
         mockWebSocket.ReceivedMessages.Add("test message");

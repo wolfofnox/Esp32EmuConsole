@@ -31,12 +31,11 @@ class WebServer
         // Use the static response middleware (short-circuits matching endpoints)
         _app.UseMiddleware<Middleware.StaticResponse>();
 
-        // WebSocket handling with service
+        // WebSocket handling with service (handles all WebSocket requests)
         _app.MapWs(_wsService);
 
         _app.MapWhen(
-            ctx => !ctx.Request.Path.StartsWithSegments("/api") &&
-                !ctx.Request.Path.StartsWithSegments("/ws"),
+            ctx => !ctx.Request.Path.StartsWithSegments("/api"),
             branch =>
             {
                 branch.UseRouting();
