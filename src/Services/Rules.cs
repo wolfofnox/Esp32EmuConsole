@@ -110,6 +110,7 @@ public class Rules : IRules
         var map = new Dictionary<string, FixedResponse?>(StringComparer.OrdinalIgnoreCase);
         foreach (var r in rules)
         {
+            // Skip processing as HTTP rule if it's a WebSocket rule or has no URI
             var path = r.Uri?.Trim();
             if (string.IsNullOrWhiteSpace(path)) continue;
             var method = r.Method?.Trim().ToUpperInvariant();

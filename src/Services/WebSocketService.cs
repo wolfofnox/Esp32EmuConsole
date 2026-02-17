@@ -5,6 +5,8 @@ namespace Esp32EmuConsole.Services;
 
 public class WebSocketService
 {
+    private const int MaxMessageBufferSize = 4096;
+    
     private readonly ILogger<WebSocketService> _logger;
     private readonly IRules _rules;
 
@@ -25,7 +27,7 @@ public class WebSocketService
             var helloBytes = Encoding.UTF8.GetBytes(hello);
             await webSocket.SendAsync(helloBytes, WebSocketMessageType.Text, true, cancellationToken);
 
-            var buffer = new byte[4096];
+            var buffer = new byte[MaxMessageBufferSize];
             while (webSocket.State == WebSocketState.Open && !cancellationToken.IsCancellationRequested)
             {
                 var result = await webSocket.ReceiveAsync(buffer, cancellationToken);

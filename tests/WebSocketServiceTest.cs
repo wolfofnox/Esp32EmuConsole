@@ -6,6 +6,8 @@ namespace Esp32EmuConsole.Tests;
 
 public class WebSocketServiceTest : IDisposable
 {
+    private const int TestTimeoutMs = 100;
+    
     private readonly Utilities.LogBuffer _logBuffer;
     private readonly Utilities.InMemoryLoggerProvider _provider;
     private readonly ILoggerFactory _loggerFactory;
@@ -78,7 +80,7 @@ public class WebSocketServiceTest : IDisposable
 
         // Act
         var cts = new CancellationTokenSource();
-        cts.CancelAfter(100); // Cancel after 100ms to avoid hanging
+        cts.CancelAfter(TestTimeoutMs);
 
         try
         {
@@ -107,7 +109,7 @@ public class WebSocketServiceTest : IDisposable
 
         // Act
         var cts = new CancellationTokenSource();
-        cts.CancelAfter(100);
+        cts.CancelAfter(TestTimeoutMs);
 
         try
         {
