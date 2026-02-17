@@ -1,4 +1,5 @@
 using Esp32EmuConsole;
+using Esp32EmuConsole.Services.WebSocket;
 
 namespace Esp32EmuConsole.Services.WebServer;
 
@@ -7,7 +8,7 @@ class WebServer
     private readonly ILogger<WebServer> _logger;
     private readonly Services.Vite _vite;
     private readonly Services.IRules _rules;
-    private readonly Services.WebSocketService _wsService;
+    private readonly WebSocket.WebSocketService _wsService;
     private readonly Services.WebServer.Configuration _config;
     private readonly WebApplication _app;
     private Task? _serverTask;
@@ -18,7 +19,7 @@ class WebServer
         _logger = _app.Services.GetRequiredService<ILogger<WebServer>>();
         _vite = _app.Services.GetRequiredService<Services.Vite>();
         _rules = _app.Services.GetRequiredService<Services.IRules>();
-        _wsService = _app.Services.GetRequiredService<Services.WebSocketService>();
+        _wsService = _app.Services.GetRequiredService<WebSocket.WebSocketService>();
         _config = _app.Services.GetRequiredService<Services.WebServer.Configuration>();
     }
     public void Configure()

@@ -1,6 +1,7 @@
 using System.Net.WebSockets;
 using System.Text;
 using Microsoft.Extensions.Logging;
+using Services = Esp32EmuConsole.Services;
 
 namespace Esp32EmuConsole.Tests;
 
@@ -55,15 +56,15 @@ public class WebSocketServiceTest : IDisposable
         var tempDir = CreateTempDirectoryWithRulesFile("[]");
         using var rules = new Services.Rules(tempDir, _loggerFactory.CreateLogger<Services.Rules>());
 
-        Assert.Throws<ArgumentNullException>(() => new Services.WebSocketService(null!, _loggerFactory, rules));
+        Assert.Throws<ArgumentNullException>(() => new Services.WebSocket.WebSocketService(null!, _loggerFactory, rules));
     }
 
     [Fact]
     public void Constructor_ThrowsArgumentNullException_WhenRulesIsNull()
     {
-        var logger = _loggerFactory.CreateLogger<Services.WebSocketService>();
+        var logger = _loggerFactory.CreateLogger<Services.WebSocket.WebSocketService>();
 
-        Assert.Throws<ArgumentNullException>(() => new Services.WebSocketService(logger, _loggerFactory, null!));
+        Assert.Throws<ArgumentNullException>(() => new Services.WebSocket.WebSocketService(logger, _loggerFactory, null!));
     }
 
     [Fact]
@@ -73,7 +74,7 @@ public class WebSocketServiceTest : IDisposable
         var rulesJson = @"[]";
         var tempDir = CreateTempDirectoryWithRulesFile(rulesJson);
         using var rules = new Services.Rules(tempDir, _loggerFactory.CreateLogger<Services.Rules>());
-        var wsService = new Services.WebSocketService(_loggerFactory.CreateLogger<Services.WebSocketService>(), _loggerFactory, rules);
+        var wsService = new Services.WebSocket.WebSocketService(_loggerFactory.CreateLogger<Services.WebSocket.WebSocketService>(), _loggerFactory, rules);
 
         var mockWebSocket = new MockWebSocket();
         _logBuffer.Clear();
@@ -103,7 +104,7 @@ public class WebSocketServiceTest : IDisposable
         var rulesJson = @"[]";
         var tempDir = CreateTempDirectoryWithRulesFile(rulesJson);
         using var rules = new Services.Rules(tempDir, _loggerFactory.CreateLogger<Services.Rules>());
-        var wsService = new Services.WebSocketService(_loggerFactory.CreateLogger<Services.WebSocketService>(), _loggerFactory, rules);
+        var wsService = new Services.WebSocket.WebSocketService(_loggerFactory.CreateLogger<Services.WebSocket.WebSocketService>(), _loggerFactory, rules);
 
         var mockWebSocket = new MockWebSocket();
 
@@ -140,7 +141,7 @@ public class WebSocketServiceTest : IDisposable
         ]";
         var tempDir = CreateTempDirectoryWithRulesFile(rulesJson);
         using var rules = new Services.Rules(tempDir, _loggerFactory.CreateLogger<Services.Rules>());
-        var wsService = new Services.WebSocketService(_loggerFactory.CreateLogger<Services.WebSocketService>(), _loggerFactory, rules);
+        var wsService = new Services.WebSocket.WebSocketService(_loggerFactory.CreateLogger<Services.WebSocket.WebSocketService>(), _loggerFactory, rules);
 
         var mockWebSocket = new MockWebSocket();
         mockWebSocket.ReceivedMessages.Add("test message");
@@ -178,7 +179,7 @@ public class WebSocketServiceTest : IDisposable
         ]";
         var tempDir = CreateTempDirectoryWithRulesFile(rulesJson);
         using var rules = new Services.Rules(tempDir, _loggerFactory.CreateLogger<Services.Rules>());
-        var wsService = new Services.WebSocketService(_loggerFactory.CreateLogger<Services.WebSocketService>(), _loggerFactory, rules);
+        var wsService = new Services.WebSocket.WebSocketService(_loggerFactory.CreateLogger<Services.WebSocket.WebSocketService>(), _loggerFactory, rules);
 
         var mockWebSocket = new MockWebSocket();
         mockWebSocket.ReceivedMessages.Add("any message");
@@ -210,7 +211,7 @@ public class WebSocketServiceTest : IDisposable
         var rulesJson = @"[]";
         var tempDir = CreateTempDirectoryWithRulesFile(rulesJson);
         using var rules = new Services.Rules(tempDir, _loggerFactory.CreateLogger<Services.Rules>());
-        var wsService = new Services.WebSocketService(_loggerFactory.CreateLogger<Services.WebSocketService>(), _loggerFactory, rules);
+        var wsService = new Services.WebSocket.WebSocketService(_loggerFactory.CreateLogger<Services.WebSocket.WebSocketService>(), _loggerFactory, rules);
 
         var mockWebSocket = new MockWebSocket();
         mockWebSocket.ReceivedMessages.Add("test message");
@@ -231,6 +232,83 @@ public class WebSocketServiceTest : IDisposable
         // Assert - Should only have hello message, no response to received message
         Assert.Single(mockWebSocket.SentMessages);
         Assert.Contains("hello", mockWebSocket.SentMessages[0], StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task HandleConnectionAsync_IntervalBehavior_SendsPeriodicMessages()
+    {
+        // Arrange
+        var rulesJson = @"[
+            {
+                ""type"": ""websocket"",
+                ""uri"": ""/ws/interval"",
+                ""behavior"": ""interval"",
+                ""intervalMs"": 50,
+                ""webSocketResponse"": ""periodic message""
+            }
+        ]";
+        var tempDir = CreateTempDirectoryWithRulesFile(rulesJson);
+        using var rules = new Services.Rules(tempDir, _loggerFactory.CreateLogger<Services.Rules>());
+        var wsService = new Services.WebSocket.WebSocketService(_loggerFactory.CreateLogger<Services.WebSocket.WebSocketService>(), _loggerFactory, rules);
+
+        var mockWebSocket = new MockWebSocket();
+
+        // Act
+        var cts = new CancellationTokenSource();
+        cts.CancelAfter(200); // Wait 200ms to get multiple interval messages
+
+        try
+        {
+            await wsService.HandleConnectionAsync(mockWebSocket, "/ws/interval", cts.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            // Expected
+        }
+
+        // Assert - Should have hello message + at least 2 periodic messages
+        Assert.True(mockWebSocket.SentMessages.Count >= 3, $"Expected at least 3 messages, got {mockWebSocket.SentMessages.Count}");
+        Assert.Contains("periodic message", mockWebSocket.SentMessages[1]);
+        Assert.Contains("periodic message", mockWebSocket.SentMessages[2]);
+    }
+
+    [Fact]
+    public async Task HandleConnectionAsync_BinaryBehavior_SendsBinaryData()
+    {
+        // Arrange - "48656C6C6F" is hex for "Hello"
+        var rulesJson = @"[
+            {
+                ""type"": ""websocket"",
+                ""uri"": ""/ws/binary"",
+                ""behavior"": ""binary"",
+                ""webSocketResponse"": ""48656C6C6F""
+            }
+        ]";
+        var tempDir = CreateTempDirectoryWithRulesFile(rulesJson);
+        using var rules = new Services.Rules(tempDir, _loggerFactory.CreateLogger<Services.Rules>());
+        var wsService = new Services.WebSocket.WebSocketService(_loggerFactory.CreateLogger<Services.WebSocket.WebSocketService>(), _loggerFactory, rules);
+
+        var mockWebSocket = new MockWebSocket();
+        mockWebSocket.ReceivedMessages.Add("trigger");
+
+        // Act
+        var cts = new CancellationTokenSource();
+        cts.CancelAfter(TestTimeoutMs);
+
+        try
+        {
+            await wsService.HandleConnectionAsync(mockWebSocket, "/ws/binary", cts.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            // Expected
+        }
+
+        // Assert - Should have hello message + binary response
+        Assert.True(mockWebSocket.SentMessages.Count >= 2);
+        // The binary data should be sent (MockWebSocket converts it to string, so we check the bytes)
+        var binaryResponse = mockWebSocket.SentMessages[1];
+        Assert.Equal("Hello", binaryResponse);
     }
 
     // Mock WebSocket for testing

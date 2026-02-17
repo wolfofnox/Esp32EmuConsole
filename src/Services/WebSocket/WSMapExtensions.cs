@@ -1,8 +1,7 @@
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
-using Esp32EmuConsole.Services;
 
-namespace Esp32EmuConsole;
+namespace Esp32EmuConsole.Services.WebSocket;
 
 public static class WSMapExtensions
 {

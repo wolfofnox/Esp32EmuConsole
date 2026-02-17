@@ -1,7 +1,8 @@
 using System.Net.WebSockets;
 using System.Text;
+using WS = System.Net.WebSockets.WebSocket;
 
-namespace Esp32EmuConsole.Services;
+namespace Esp32EmuConsole.Services.WebSocket;
 
 public class WebSocketService
 {
@@ -19,7 +20,7 @@ public class WebSocketService
         _rules = rules ?? throw new ArgumentNullException(nameof(rules));
     }
 
-    public async Task HandleConnectionAsync(WebSocket webSocket, string path, CancellationToken cancellationToken = default)
+    public async Task HandleConnectionAsync(WS webSocket, string path, CancellationToken cancellationToken = default)
     {
         var wsLogger = _loggerFactory.CreateLogger("WS");
         wsLogger.LogInformation("Connection opened: {Path}", path);
@@ -90,7 +91,7 @@ public class WebSocketService
         }
     }
 
-    private async Task StartIntervalMessagesAsync(WebSocket webSocket, string path, CancellationToken cancellationToken)
+    private async Task StartIntervalMessagesAsync(WS webSocket, string path, CancellationToken cancellationToken)
     {
         var rules = _rules.GetRules();
         var wsRule = rules.FirstOrDefault(r => 
