@@ -127,6 +127,112 @@ public class WebSocketServiceTest : IDisposable
         Assert.Contains("Connected", helloMessage);
     }
 
+    [Fact]
+    public async Task HandleConnectionAsync_EchoBehavior_ReturnsReceivedMessage()
+    {
+        // Arrange
+        var rulesJson = @"[
+            {
+                ""type"": ""websocket"",
+                ""path"": ""/ws"",
+                ""behavior"": ""echo""
+            }
+        ]";
+        var tempDir = CreateTempDirectoryWithRulesFile(rulesJson);
+        using var rules = new Services.Rules(tempDir, _loggerFactory.CreateLogger<Services.Rules>());
+        var wsService = new Services.WebSocketService(_loggerFactory.CreateLogger<Services.WebSocketService>(), rules);
+
+        var mockWebSocket = new MockWebSocket();
+        mockWebSocket.ReceivedMessages.Add("test message");
+
+        // Act
+        var cts = new CancellationTokenSource();
+        cts.CancelAfter(TestTimeoutMs);
+
+        try
+        {
+            await wsService.HandleConnectionAsync(mockWebSocket, "/ws", cts.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            // Expected
+        }
+
+        // Assert - Should have hello message + echo response
+        Assert.True(mockWebSocket.SentMessages.Count >= 2);
+        var echoMessage = mockWebSocket.SentMessages[1];
+        Assert.Equal("test message", echoMessage);
+    }
+
+    [Fact]
+    public async Task HandleConnectionAsync_StaticBehavior_ReturnsStaticResponse()
+    {
+        // Arrange
+        var rulesJson = @"[
+            {
+                ""type"": ""websocket"",
+                ""path"": ""/ws/sensor"",
+                ""behavior"": ""static"",
+                ""webSocketResponse"": ""{\u0022temp\u0022:25.5}""
+            }
+        ]";
+        var tempDir = CreateTempDirectoryWithRulesFile(rulesJson);
+        using var rules = new Services.Rules(tempDir, _loggerFactory.CreateLogger<Services.Rules>());
+        var wsService = new Services.WebSocketService(_loggerFactory.CreateLogger<Services.WebSocketService>(), rules);
+
+        var mockWebSocket = new MockWebSocket();
+        mockWebSocket.ReceivedMessages.Add("any message");
+
+        // Act
+        var cts = new CancellationTokenSource();
+        cts.CancelAfter(TestTimeoutMs);
+
+        try
+        {
+            await wsService.HandleConnectionAsync(mockWebSocket, "/ws/sensor", cts.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            // Expected
+        }
+
+        // Assert - Should have hello message + static response
+        Assert.True(mockWebSocket.SentMessages.Count >= 2);
+        var staticResponse = mockWebSocket.SentMessages[1];
+        Assert.Contains("temp", staticResponse);
+        Assert.Contains("25.5", staticResponse);
+    }
+
+    [Fact]
+    public async Task HandleConnectionAsync_NoMatchingRule_DoesNotSendResponse()
+    {
+        // Arrange
+        var rulesJson = @"[]";
+        var tempDir = CreateTempDirectoryWithRulesFile(rulesJson);
+        using var rules = new Services.Rules(tempDir, _loggerFactory.CreateLogger<Services.Rules>());
+        var wsService = new Services.WebSocketService(_loggerFactory.CreateLogger<Services.WebSocketService>(), rules);
+
+        var mockWebSocket = new MockWebSocket();
+        mockWebSocket.ReceivedMessages.Add("test message");
+
+        // Act
+        var cts = new CancellationTokenSource();
+        cts.CancelAfter(TestTimeoutMs);
+
+        try
+        {
+            await wsService.HandleConnectionAsync(mockWebSocket, "/ws", cts.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            // Expected
+        }
+
+        // Assert - Should only have hello message, no response to received message
+        Assert.Single(mockWebSocket.SentMessages);
+        Assert.Contains("hello", mockWebSocket.SentMessages[0], StringComparison.OrdinalIgnoreCase);
+    }
+
     // Mock WebSocket for testing
     private class MockWebSocket : WebSocket
     {
