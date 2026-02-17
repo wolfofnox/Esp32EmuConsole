@@ -14,5 +14,16 @@
     { // Example of a rule without a predefined response
         "uri": "/api/noresp",
         "method": "GET"
+    },
+    { // WebSocket echo example - echoes back received messages
+        "type": "websocket",
+        "path": "/ws",
+        "behavior": "echo"
+    },
+    { // WebSocket static response example - returns a fixed message
+        "type": "websocket",
+        "path": "/ws/sensor",
+        "behavior": "static",
+        "webSocketResponse": "{\"temp\":25.5,\"humidity\":60}"
     }
 ]

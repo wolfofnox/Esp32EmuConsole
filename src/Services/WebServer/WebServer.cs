@@ -7,6 +7,7 @@ class WebServer
     private readonly ILogger<WebServer> _logger;
     private readonly Services.Vite _vite;
     private readonly Services.Rules _rules;
+    private readonly Services.WebSocketService _wsService;
     private readonly Services.WebServer.Configuration _config;
     private readonly WebApplication _app;
     private Task? _serverTask;
@@ -17,6 +18,7 @@ class WebServer
         _logger = _app.Services.GetRequiredService<ILogger<WebServer>>();
         _vite = _app.Services.GetRequiredService<Services.Vite>();
         _rules = _app.Services.GetRequiredService<Services.Rules>();
+        _wsService = _app.Services.GetRequiredService<Services.WebSocketService>();
         _config = _app.Services.GetRequiredService<Services.WebServer.Configuration>();
     }
     public void Configure()
@@ -29,8 +31,8 @@ class WebServer
         // Use the static response middleware (short-circuits matching endpoints)
         _app.UseMiddleware<Middleware.StaticResponse>();
 
-        ////// TODO WebSocket???
-        _app.MapWs();
+        // WebSocket handling with service
+        _app.MapWs(_wsService);
 
         _app.MapWhen(
             ctx => !ctx.Request.Path.StartsWithSegments("/api") &&

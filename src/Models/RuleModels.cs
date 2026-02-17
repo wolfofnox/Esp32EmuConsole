@@ -12,7 +12,11 @@ public record FixedResponse
 
 public record Rule
 {
-    public required string Uri { get; init; }
-    public required string Method { get; init; }
+    public string? Uri { get; init; }
+    public string? Method { get; init; }
     public FixedResponse? Response { get; init; }
+    public string? Type { get; init; }
+    public string? Path { get; init; }
+    public string? Behavior { get; init; }
+    public string? WebSocketResponse { get; init; }
 }

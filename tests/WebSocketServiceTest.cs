@@ -1,0 +1,179 @@
+using System.Net.WebSockets;
+using System.Text;
+using Microsoft.Extensions.Logging;
+
+namespace Esp32EmuConsole.Tests;
+
+public class WebSocketServiceTest : IDisposable
+{
+    private readonly Utilities.LogBuffer _logBuffer;
+    private readonly Utilities.InMemoryLoggerProvider _provider;
+    private readonly ILoggerFactory _loggerFactory;
+    private readonly List<string> _tempDirectories = new();
+
+    public WebSocketServiceTest()
+    {
+        _logBuffer = new Utilities.LogBuffer();
+        _provider = new Utilities.InMemoryLoggerProvider(
+            new Utilities.LogRoute("*", LogLevel.Trace, Utilities.LogFormat.Full, _logBuffer)
+        );
+        _loggerFactory = LoggerFactory.Create(builder => builder.AddProvider(_provider));
+    }
+
+    private string CreateTempDirectoryWithRulesFile(string rulesJson)
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        Directory.CreateDirectory(tempDir);
+        _tempDirectories.Add(tempDir);
+        File.WriteAllText(Path.Combine(tempDir, "rules.json"), rulesJson);
+        return tempDir;
+    }
+
+    public void Dispose()
+    {
+        foreach (var tempDir in _tempDirectories)
+        {
+            try
+            {
+                if (Directory.Exists(tempDir))
+                {
+                    Directory.Delete(tempDir, true);
+                }
+            }
+            catch
+            {
+                // Ignore cleanup errors
+            }
+        }
+    }
+
+    [Fact]
+    public void Constructor_ThrowsArgumentNullException_WhenLoggerIsNull()
+    {
+        var tempDir = CreateTempDirectoryWithRulesFile("[]");
+        using var rules = new Services.Rules(tempDir, _loggerFactory.CreateLogger<Services.Rules>());
+
+        Assert.Throws<ArgumentNullException>(() => new Services.WebSocketService(null!, rules));
+    }
+
+    [Fact]
+    public void Constructor_ThrowsArgumentNullException_WhenRulesIsNull()
+    {
+        var logger = _loggerFactory.CreateLogger<Services.WebSocketService>();
+
+        Assert.Throws<ArgumentNullException>(() => new Services.WebSocketService(logger, null!));
+    }
+
+    [Fact]
+    public async Task HandleConnectionAsync_LogsConnectionEstablished()
+    {
+        // Arrange
+        var rulesJson = @"[]";
+        var tempDir = CreateTempDirectoryWithRulesFile(rulesJson);
+        using var rules = new Services.Rules(tempDir, _loggerFactory.CreateLogger<Services.Rules>());
+        var wsService = new Services.WebSocketService(_loggerFactory.CreateLogger<Services.WebSocketService>(), rules);
+
+        var mockWebSocket = new MockWebSocket();
+        _logBuffer.Clear();
+
+        // Act
+        var cts = new CancellationTokenSource();
+        cts.CancelAfter(100); // Cancel after 100ms to avoid hanging
+
+        try
+        {
+            await wsService.HandleConnectionAsync(mockWebSocket, "/ws", cts.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            // Expected
+        }
+
+        // Assert
+        var logs = _logBuffer.Snapshot();
+        Assert.Contains(logs, log => log.Contains("WebSocket connection established") && log.Contains("/ws"));
+    }
+
+    [Fact]
+    public async Task HandleConnectionAsync_SendsHelloMessage()
+    {
+        // Arrange
+        var rulesJson = @"[]";
+        var tempDir = CreateTempDirectoryWithRulesFile(rulesJson);
+        using var rules = new Services.Rules(tempDir, _loggerFactory.CreateLogger<Services.Rules>());
+        var wsService = new Services.WebSocketService(_loggerFactory.CreateLogger<Services.WebSocketService>(), rules);
+
+        var mockWebSocket = new MockWebSocket();
+
+        // Act
+        var cts = new CancellationTokenSource();
+        cts.CancelAfter(100);
+
+        try
+        {
+            await wsService.HandleConnectionAsync(mockWebSocket, "/ws", cts.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            // Expected
+        }
+
+        // Assert
+        Assert.NotEmpty(mockWebSocket.SentMessages);
+        var helloMessage = mockWebSocket.SentMessages[0];
+        Assert.Contains("hello", helloMessage, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Connected", helloMessage);
+    }
+
+    // Mock WebSocket for testing
+    private class MockWebSocket : WebSocket
+    {
+        public List<string> SentMessages { get; } = new();
+        public List<string> ReceivedMessages { get; set; } = new();
+        private int _receiveIndex = 0;
+
+        public override WebSocketCloseStatus? CloseStatus => null;
+        public override string? CloseStatusDescription => null;
+        public override WebSocketState State => WebSocketState.Open;
+        public override string? SubProtocol => null;
+
+        public override void Abort()
+        {
+        }
+
+        public override Task CloseAsync(WebSocketCloseStatus closeStatus, string? statusDescription, CancellationToken cancellationToken)
+        {
+            return Task.CompletedTask;
+        }
+
+        public override Task CloseOutputAsync(WebSocketCloseStatus closeStatus, string? statusDescription, CancellationToken cancellationToken)
+        {
+            return Task.CompletedTask;
+        }
+
+        public override void Dispose()
+        {
+        }
+
+        public override Task<WebSocketReceiveResult> ReceiveAsync(ArraySegment<byte> buffer, CancellationToken cancellationToken)
+        {
+            if (_receiveIndex >= ReceivedMessages.Count)
+            {
+                // Wait indefinitely if no more messages
+                return Task.Delay(-1, cancellationToken).ContinueWith<WebSocketReceiveResult>(_ => null!);
+            }
+
+            var message = ReceivedMessages[_receiveIndex++];
+            var bytes = Encoding.UTF8.GetBytes(message);
+            bytes.CopyTo(buffer.Array!, buffer.Offset);
+            return Task.FromResult(new WebSocketReceiveResult(bytes.Length, WebSocketMessageType.Text, true));
+        }
+
+        public override Task SendAsync(ArraySegment<byte> buffer, WebSocketMessageType messageType, bool endOfMessage, CancellationToken cancellationToken)
+        {
+            var message = Encoding.UTF8.GetString(buffer.Array!, buffer.Offset, buffer.Count);
+            SentMessages.Add(message);
+            return Task.CompletedTask;
+        }
+    }
+}
