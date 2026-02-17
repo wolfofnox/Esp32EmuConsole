@@ -73,3 +73,5 @@ node_modules/
 dist/
 package.json
 vite.config.js
+rules.json
+index.html
