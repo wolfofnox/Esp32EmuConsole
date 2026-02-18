@@ -107,20 +107,23 @@ public class Rules : IRules
             rules = new List<Rule>();
         }
 
-        var map = new Dictionary<string, FixedResponse?>(StringComparer.OrdinalIgnoreCase);
+        var httpRuleMap = new Dictionary<string, FixedResponse?>(StringComparer.OrdinalIgnoreCase);
         foreach (var r in rules)
         {
-            // Skip processing as HTTP rule if it's a WebSocket rule or has no URI
-            var path = r.Uri?.Trim();
-            if (string.IsNullOrWhiteSpace(path)) continue;
-            var method = r.Method?.Trim().ToUpperInvariant();
-            if (string.IsNullOrWhiteSpace(method)) method = "GET";
-            var key = MakeKey(method, path);
-            map[key] = r.Response;
+            // Process only HTTP rules (those with Response.Http)
+            if (r.Response?.Http != null)
+            {
+                var path = r.Uri?.Trim();
+                if (string.IsNullOrWhiteSpace(path)) continue;
+                var method = r.Method?.Trim().ToUpperInvariant();
+                if (string.IsNullOrWhiteSpace(method)) method = "GET";
+                var key = MakeKey(method, path);
+                httpRuleMap[key] = r.Response.Http;
+            }
         }
 
         _ruleList = rules;
-        _ruleMap = map;
+        _ruleMap = httpRuleMap;
     }
 
     public IReadOnlyList<Rule> GetRules()

@@ -10,13 +10,23 @@ public record FixedResponse
     public string? Body { get; init; }
 }
 
+public record WebSocketResponse
+{
+    public string? Behavior { get; init; }
+    public string? Text { get; init; }
+    public string? Binary { get; init; }
+    public int? IntervalMs { get; init; }
+}
+
+public record RuleResponse
+{
+    public FixedResponse? Http { get; init; }
+    public WebSocketResponse? Ws { get; init; }
+}
+
 public record Rule
 {
-    public string? Uri { get; init; }
+    public required string Uri { get; init; }
     public string? Method { get; init; }
-    public FixedResponse? Response { get; init; }
-    public string? Type { get; init; }
-    public string? Behavior { get; init; }
-    public string? WebSocketResponse { get; init; }
-    public int? IntervalMs { get; init; }
+    public RuleResponse? Response { get; init; }
 }

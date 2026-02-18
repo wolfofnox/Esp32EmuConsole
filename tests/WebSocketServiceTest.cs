@@ -134,9 +134,12 @@ public class WebSocketServiceTest : IDisposable
         // Arrange
         var rulesJson = @"[
             {
-                ""type"": ""websocket"",
                 ""uri"": ""/ws"",
-                ""behavior"": ""echo""
+                ""response"": {
+                    ""ws"": {
+                        ""behavior"": ""echo""
+                    }
+                }
             }
         ]";
         var tempDir = CreateTempDirectoryWithRulesFile(rulesJson);
@@ -171,10 +174,13 @@ public class WebSocketServiceTest : IDisposable
         // Arrange
         var rulesJson = @"[
             {
-                ""type"": ""websocket"",
                 ""uri"": ""/ws/sensor"",
-                ""behavior"": ""static"",
-                ""webSocketResponse"": ""{\u0022temp\u0022:25.5}""
+                ""response"": {
+                    ""ws"": {
+                        ""behavior"": ""static"",
+                        ""text"": ""{\u0022temp\u0022:25.5}""
+                    }
+                }
             }
         ]";
         var tempDir = CreateTempDirectoryWithRulesFile(rulesJson);
@@ -240,11 +246,14 @@ public class WebSocketServiceTest : IDisposable
         // Arrange
         var rulesJson = @"[
             {
-                ""type"": ""websocket"",
                 ""uri"": ""/ws/interval"",
-                ""behavior"": ""interval"",
-                ""intervalMs"": 50,
-                ""webSocketResponse"": ""periodic message""
+                ""response"": {
+                    ""ws"": {
+                        ""behavior"": ""interval"",
+                        ""intervalMs"": 50,
+                        ""text"": ""periodic message""
+                    }
+                }
             }
         ]";
         var tempDir = CreateTempDirectoryWithRulesFile(rulesJson);
@@ -278,10 +287,13 @@ public class WebSocketServiceTest : IDisposable
         // Arrange - "48656C6C6F" is hex for "Hello"
         var rulesJson = @"[
             {
-                ""type"": ""websocket"",
                 ""uri"": ""/ws/binary"",
-                ""behavior"": ""binary"",
-                ""webSocketResponse"": ""48656C6C6F""
+                ""response"": {
+                    ""ws"": {
+                        ""behavior"": ""static"",
+                        ""binary"": ""48656C6C6F""
+                    }
+                }
             }
         ]";
         var tempDir = CreateTempDirectoryWithRulesFile(rulesJson);

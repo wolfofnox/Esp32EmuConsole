@@ -24,6 +24,7 @@ public class WebSocketService
     {
         var wsLogger = _loggerFactory.CreateLogger("WS");
         wsLogger.LogInformation("Connection opened: {Path}", path);
+        _logger.LogInformation("WebSocket connection opened: {Path}", path);
 
         try
         {
@@ -44,6 +45,7 @@ public class WebSocketService
                 if (result.MessageType == WebSocketMessageType.Close)
                 {
                     wsLogger.LogInformation("Connection closed: {Path}", path);
+                    _logger.LogInformation("WebSocket connection closed: {Path}", path);
                     break;
                 }
 
@@ -76,6 +78,7 @@ public class WebSocketService
         catch (OperationCanceledException)
         {
             wsLogger.LogInformation("Connection cancelled: {Path}", path);
+            _logger.LogInformation("WebSocket connection cancelled: {Path}", path);
         }
         catch (WebSocketException ex)
         {
@@ -88,6 +91,7 @@ public class WebSocketService
         finally
         {
             wsLogger.LogInformation("Connection closed: {Path}", path);
+            _logger.LogInformation("WebSocket connection finally closed: {Path}", path);
         }
     }
 
@@ -95,26 +99,41 @@ public class WebSocketService
     {
         var rules = _rules.GetRules();
         var wsRule = rules.FirstOrDefault(r => 
-            (r.Type?.Equals("websocket", StringComparison.OrdinalIgnoreCase) == true || string.IsNullOrEmpty(r.Type)) && 
             r.Uri?.Equals(path, StringComparison.OrdinalIgnoreCase) == true &&
-            r.Behavior?.Equals("interval", StringComparison.OrdinalIgnoreCase) == true &&
-            r.IntervalMs.HasValue);
+            r.Response?.Ws?.Behavior?.Equals("interval", StringComparison.OrdinalIgnoreCase) == true &&
+            r.Response?.Ws?.IntervalMs.HasValue == true);
 
-        if (wsRule == null || !wsRule.IntervalMs.HasValue)
+        if (wsRule?.Response?.Ws == null || !wsRule.Response.Ws.IntervalMs.HasValue)
         {
             return;
         }
+
+        var wsResponse = wsRule.Response.Ws;
+        var responseData = wsResponse.Text ?? wsResponse.Binary;
 
         try
         {
             while (!cancellationToken.IsCancellationRequested && webSocket.State == WebSocketState.Open)
             {
-                await Task.Delay(wsRule.IntervalMs.Value, cancellationToken);
+                await Task.Delay(wsResponse.IntervalMs.Value, cancellationToken);
                 
-                if (webSocket.State == WebSocketState.Open && !string.IsNullOrEmpty(wsRule.WebSocketResponse))
+                if (webSocket.State == WebSocketState.Open && !string.IsNullOrEmpty(responseData))
                 {
-                    var responseBytes = Encoding.UTF8.GetBytes(wsRule.WebSocketResponse);
-                    await webSocket.SendAsync(responseBytes, WebSocketMessageType.Text, true, cancellationToken);
+                    byte[] responseBytes;
+                    WebSocketMessageType messageType;
+                    
+                    if (!string.IsNullOrEmpty(wsResponse.Binary))
+                    {
+                        responseBytes = Convert.FromHexString(wsResponse.Binary);
+                        messageType = WebSocketMessageType.Binary;
+                    }
+                    else
+                    {
+                        responseBytes = Encoding.UTF8.GetBytes(responseData);
+                        messageType = WebSocketMessageType.Text;
+                    }
+                    
+                    await webSocket.SendAsync(responseBytes, messageType, true, cancellationToken);
                 }
             }
         }
@@ -128,22 +147,24 @@ public class WebSocketService
     {
         var rules = _rules.GetRules();
         var wsRule = rules.FirstOrDefault(r => 
-            (r.Type?.Equals("websocket", StringComparison.OrdinalIgnoreCase) == true || string.IsNullOrEmpty(r.Type)) && 
-            r.Uri?.Equals(path, StringComparison.OrdinalIgnoreCase) == true);
+            r.Uri?.Equals(path, StringComparison.OrdinalIgnoreCase) == true &&
+            r.Response?.Ws != null);
 
-        if (wsRule == null)
+        if (wsRule?.Response?.Ws == null)
         {
             return (null, WebSocketMessageType.Text);
         }
 
-        var behavior = wsRule.Behavior?.ToLowerInvariant();
+        var wsResponse = wsRule.Response.Ws;
+        var behavior = wsResponse.Behavior?.ToLowerInvariant();
+        
         return behavior switch
         {
             "echo" => (buffer[..count], receivedType),
-            "static" when !string.IsNullOrEmpty(wsRule.WebSocketResponse) => 
-                (Encoding.UTF8.GetBytes(wsRule.WebSocketResponse), WebSocketMessageType.Text),
-            "binary" when !string.IsNullOrEmpty(wsRule.WebSocketResponse) => 
-                (Convert.FromHexString(wsRule.WebSocketResponse), WebSocketMessageType.Binary),
+            "static" when !string.IsNullOrEmpty(wsResponse.Binary) => 
+                (Convert.FromHexString(wsResponse.Binary), WebSocketMessageType.Binary),
+            "static" when !string.IsNullOrEmpty(wsResponse.Text) => 
+                (Encoding.UTF8.GetBytes(wsResponse.Text), WebSocketMessageType.Text),
             _ => (null, WebSocketMessageType.Text)
         };
     }

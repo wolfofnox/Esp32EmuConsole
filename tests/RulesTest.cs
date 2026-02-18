@@ -55,8 +55,10 @@ public class RulesTest : IDisposable
                 ""Method"": ""GET"",
                 ""Uri"": ""/test"",
                 ""Response"": {
-                    ""StatusCode"": 200,
-                    ""Body"": ""test response""
+                    ""Http"": {
+                        ""StatusCode"": 200,
+                        ""Body"": ""test response""
+                    } }
                 }
             }
         ]";
@@ -71,7 +73,7 @@ public class RulesTest : IDisposable
         Assert.Equal("GET", rules[0].Method);
         Assert.Equal("/test", rules[0].Uri);
         Assert.NotNull(rules[0].Response);
-        Assert.Equal(200, rules[0].Response?.StatusCode);
+        Assert.Equal(200, rules[0].Response?.Http?.StatusCode);
 
     }
 
@@ -526,15 +528,21 @@ public class RulesTest : IDisposable
         // Arrange
         var rulesJson = @"[
             {
-                ""Type"": ""websocket"",
                 ""Uri"": ""/ws"",
-                ""Behavior"": ""echo""
+                ""Response"": {
+                    ""Ws"": {
+                        ""Behavior"": ""echo""
+                    }
+                }
             },
             {
-                ""Type"": ""websocket"",
                 ""Uri"": ""/ws/sensor"",
-                ""Behavior"": ""static"",
-                ""WebSocketResponse"": ""{\u0022temp\u0022:25.5}""
+                ""Response"": {
+                    ""Ws"": {
+                        ""Behavior"": ""static"",
+                        ""Text"": ""{\u0022temp\u0022:25.5}""
+                    }
+                }
             }
         ]";
         var tempDir = CreateTempDirectoryWithRulesFile(rulesJson);
@@ -547,15 +555,13 @@ public class RulesTest : IDisposable
         Assert.Equal(2, rules.Count);
         
         var echoRule = rules[0];
-        Assert.Equal("websocket", echoRule.Type);
         Assert.Equal("/ws", echoRule.Uri);
-        Assert.Equal("echo", echoRule.Behavior);
+        Assert.Equal("echo", echoRule.Response?.Ws?.Behavior);
         
         var staticRule = rules[1];
-        Assert.Equal("websocket", staticRule.Type);
         Assert.Equal("/ws/sensor", staticRule.Uri);
-        Assert.Equal("static", staticRule.Behavior);
-        Assert.Contains("temp", staticRule.WebSocketResponse);
+        Assert.Equal("static", staticRule.Response?.Ws?.Behavior);
+        Assert.Contains("temp", staticRule.Response?.Ws?.Text);
     }
 
     [Fact]
@@ -567,14 +573,19 @@ public class RulesTest : IDisposable
                 ""Method"": ""GET"",
                 ""Uri"": ""/api/test"",
                 ""Response"": {
-                    ""StatusCode"": 200,
-                    ""Body"": ""http response""
+                    ""Http"": {
+                        ""StatusCode"": 200,
+                        ""Body"": ""http response""
+                    } }
                 }
             },
             {
-                ""Type"": ""websocket"",
                 ""Uri"": ""/ws"",
-                ""Behavior"": ""echo""
+                ""Response"": {
+                    ""Ws"": {
+                        ""Behavior"": ""echo""
+                    }
+                }
             }
         ]";
         var tempDir = CreateTempDirectoryWithRulesFile(rulesJson);
@@ -590,11 +601,11 @@ public class RulesTest : IDisposable
         var httpRule = rules[0];
         Assert.Equal("GET", httpRule.Method);
         Assert.Equal("/api/test", httpRule.Uri);
-        Assert.NotNull(httpRule.Response);
+        Assert.NotNull(httpRule.Response?.Http);
         
         // Verify WebSocket rule
         var wsRule = rules[1];
-        Assert.Equal("websocket", wsRule.Type);
         Assert.Equal("/ws", wsRule.Uri);
+        Assert.NotNull(wsRule.Response?.Ws);
     }
 }

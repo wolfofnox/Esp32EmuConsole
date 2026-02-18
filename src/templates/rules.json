@@ -2,43 +2,61 @@
     {
         "uri": "/api/hello",
         "method": "GET",
-        "type": "http",
         "response": {
-            "statusCode": 200,
-            "contentType": "text/plain",
-            "headers": {
-                "Cache-Control": "no-cache"
-            },
-            "body": "Hello, World!"
+            "http": {
+                "statusCode": 200,
+                "contentType": "text/plain",
+                "headers": {
+                    "Cache-Control": "no-cache"
+                },
+                "body": "Hello, World!"
+            }
         }
     },
     {
         "uri": "/api/noresp",
         "method": "GET",
-        "type": "http"
+        "response": {
+            "http": {
+                "statusCode": 501,
+                "body": "No response defined"
+            }
+        }
     },
     {
         "uri": "/ws",
-        "type": "websocket",
-        "behavior": "echo"
+        "response": {
+            "ws": {
+                "behavior": "echo"
+            }
+        }
     },
     {
         "uri": "/ws/sensor",
-        "type": "websocket",
-        "behavior": "static",
-        "webSocketResponse": "{\"temp\":25.5,\"humidity\":60}"
+        "response": {
+            "ws": {
+                "behavior": "static",
+                "text": "{\"temp\":25.5,\"humidity\":60}"
+            }
+        }
     },
     {
         "uri": "/ws/interval",
-        "type": "websocket",
-        "behavior": "interval",
-        "intervalMs": 1000,
-        "webSocketResponse": "{\"timestamp\":\"{{now}}\"}"
+        "response": {
+            "ws": {
+                "behavior": "interval",
+                "intervalMs": 1000,
+                "text": "{\"timestamp\":\"periodic_update\"}"
+            }
+        }
     },
     {
         "uri": "/ws/binary",
-        "type": "websocket",
-        "behavior": "binary",
-        "webSocketResponse": "48656C6C6F20576F726C64"
+        "response": {
+            "ws": {
+                "behavior": "static",
+                "binary": "48656C6C6F20576F726C64"
+            }
+        }
     }
 ]
