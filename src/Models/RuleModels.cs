@@ -2,7 +2,7 @@ using System.Collections.Generic;
 
 namespace Esp32EmuConsole;
 
-public record FixedResponse
+public record HttpResponse
 {
     public required int StatusCode { get; init; }
     public string? ContentType { get; init; }
@@ -20,7 +20,7 @@ public record WebSocketResponse
 
 public record RuleResponse
 {
-    public FixedResponse? Http { get; init; }
+    public HttpResponse? Http { get; init; }
     public WebSocketResponse? Ws { get; init; }
 }
 

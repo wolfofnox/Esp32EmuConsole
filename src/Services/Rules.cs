@@ -15,7 +15,7 @@ public class Rules : IRules
     private readonly ILogger<Rules> _logger;
     private readonly ReaderWriterLockSlim _lock = new();
     private List<Rule> _ruleList = new();
-    private Dictionary<string, FixedResponse?> _ruleMap = new(StringComparer.OrdinalIgnoreCase);
+    private Dictionary<string, HttpResponse?> _ruleMap = new(StringComparer.OrdinalIgnoreCase);
 
     [Obsolete("Use GetRules() method instead for thread-safe access")]
     public List<Rule> RuleList
@@ -35,14 +35,14 @@ public class Rules : IRules
     }
 
     [Obsolete("Use TryGetResponse() method instead for thread-safe access")]
-    public Dictionary<string, FixedResponse?> RuleMap
+    public Dictionary<string, HttpResponse?> RuleMap
     {
         get
         {
             _lock.EnterReadLock();
             try
             {
-                return new Dictionary<string, FixedResponse?>(_ruleMap, StringComparer.OrdinalIgnoreCase);
+                return new Dictionary<string, HttpResponse?>(_ruleMap, StringComparer.OrdinalIgnoreCase);
             }
             finally
             {
@@ -91,7 +91,7 @@ public class Rules : IRules
         if (!File.Exists(_rulesPath))
         {
             _ruleList = new List<Rule>();
-            _ruleMap = new Dictionary<string, FixedResponse?>(StringComparer.OrdinalIgnoreCase);
+            _ruleMap = new Dictionary<string, HttpResponse?>(StringComparer.OrdinalIgnoreCase);
             return;
         }
 
@@ -107,7 +107,7 @@ public class Rules : IRules
             rules = new List<Rule>();
         }
 
-        var httpRuleMap = new Dictionary<string, FixedResponse?>(StringComparer.OrdinalIgnoreCase);
+        var httpRuleMap = new Dictionary<string, HttpResponse?>(StringComparer.OrdinalIgnoreCase);
         foreach (var r in rules)
         {
             // Process only HTTP rules (those with Response.Http)
@@ -139,7 +139,7 @@ public class Rules : IRules
         }
     }
 
-    public bool TryGetResponse(string method, string path, out FixedResponse? response)
+    public bool TryGetResponse(string method, string path, out HttpResponse? response)
     {
         _lock.EnterReadLock();
         try

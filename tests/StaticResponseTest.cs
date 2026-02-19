@@ -66,7 +66,7 @@ public class StaticResponseTest : IDisposable
             {
                 Method = "GET",
                 Uri = "/test",
-                Response = new RuleResponse { Http = new FixedResponse
+                Response = new RuleResponse { Http = new HttpResponse
                 {
                     StatusCode = 200,
                     ContentType = "application/json",
@@ -155,7 +155,7 @@ public class StaticResponseTest : IDisposable
             {
                 Method = "GET",
                 Uri = "/test",
-                Response = new RuleResponse { Http = new FixedResponse { StatusCode = 200, Body = "test" } }
+                Response = new RuleResponse { Http = new HttpResponse { StatusCode = 200, Body = "test" } }
             }
         };
 
@@ -198,7 +198,7 @@ public class StaticResponseTest : IDisposable
             {
                 Method = method,
                 Uri = path,
-                Response = new RuleResponse { Http = new FixedResponse
+                Response = new RuleResponse { Http = new HttpResponse
                 {
                     StatusCode = 200,
                     Body = $"Response for {method} {path}"
@@ -241,7 +241,7 @@ public class StaticResponseTest : IDisposable
             {
                 Method = "GET",
                 Uri = "/test",
-                Response = new RuleResponse { Http = new FixedResponse
+                Response = new RuleResponse { Http = new HttpResponse
                 {
                     StatusCode = 200,
                     Headers = new Dictionary<string, string>
@@ -285,7 +285,7 @@ public class StaticResponseTest : IDisposable
             {
                 Method = "GET",
                 Uri = "/test",
-                Response = new RuleResponse { Http = new FixedResponse
+                Response = new RuleResponse { Http = new HttpResponse
                 {
                     StatusCode = 200,
                     ContentType = "text/plain",
@@ -324,7 +324,7 @@ public class StaticResponseTest : IDisposable
             {
                 Method = "GET",
                 Uri = "/test",
-                Response = new RuleResponse { Http = new FixedResponse
+                Response = new RuleResponse { Http = new HttpResponse
                 {
                     StatusCode = 200,
                     ContentType = "text/plain",

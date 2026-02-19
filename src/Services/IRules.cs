@@ -19,7 +19,7 @@ public interface IRules : IDisposable
     /// <param name="path">The request path.</param>
     /// <param name="response">The fixed response if found, null otherwise.</param>
     /// <returns>True if a rule was found for the method and path; otherwise, false.</returns>
-    bool TryGetResponse(string method, string path, out FixedResponse? response);
+    bool TryGetResponse(string method, string path, out HttpResponse? response);
 
     /// <summary>
     /// Reloads the rules from the rules file.
