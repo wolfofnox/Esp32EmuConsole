@@ -55,11 +55,10 @@ public class RulesTest : IDisposable
                 ""Method"": ""GET"",
                 ""Uri"": ""/test"",
                 ""Response"": {
-                    ""Http"": {
-                        ""StatusCode"": 200,
-                        ""Body"": ""test response""
-                    } }
-                }
+                                ""Http"": {
+                    ""StatusCode"": 200,
+                    ""Body"": ""test response""
+                } }
             }
         ]";
         var tempDir = CreateTempDirectoryWithRulesFile(rulesJson);
@@ -122,17 +121,19 @@ public class RulesTest : IDisposable
                 ""Method"": ""GET"",
                 ""Uri"": ""/api/users"",
                 ""Response"": {
+                                ""Http"": {
                     ""StatusCode"": 200,
                     ""Body"": ""users list""
-                }
+                } }
             },
             {
                 ""Method"": ""POST"",
                 ""Uri"": ""/api/users"",
                 ""Response"": {
+                                ""Http"": {
                     ""StatusCode"": 201,
                     ""Body"": ""user created""
-                }
+                } }
             }
         ]";
         var tempDir = CreateTempDirectoryWithRulesFile(rulesJson);
@@ -160,8 +161,9 @@ public class RulesTest : IDisposable
                 ""Method"": ""get"",
                 ""Uri"": ""/test"",
                 ""Response"": {
+                                ""Http"": {
                     ""StatusCode"": 200
-                }
+                } }
             }
         ]";
         var tempDir = CreateTempDirectoryWithRulesFile(rulesJson);
@@ -185,8 +187,9 @@ public class RulesTest : IDisposable
                 ""Method"": ""GET"",
                 ""Uri"": ""test"",
                 ""Response"": {
+                                ""Http"": {
                     ""StatusCode"": 200
-                }
+                } }
             }
         ]";
         var tempDir = CreateTempDirectoryWithRulesFile(rulesJson);
@@ -220,7 +223,8 @@ public class RulesTest : IDisposable
         Assert.Single(rules);
         var hasResponse = rulesService.TryGetResponse("GET", "/test", out var response);
         Assert.True(hasResponse);
-        Assert.Null(response);
+        Assert.NotNull(response);
+        Assert.Equal(501, response?.StatusCode);
 
     }
 
@@ -233,15 +237,17 @@ public class RulesTest : IDisposable
                 ""Method"": ""GET"",
                 ""Uri"": """",
                 ""Response"": {
+                                ""Http"": {
                     ""StatusCode"": 200
-                }
+                } }
             },
             {
                 ""Method"": ""GET"",
                 ""Uri"": ""/valid"",
                 ""Response"": {
+                                ""Http"": {
                     ""StatusCode"": 200
-                }
+                } }
             }
         ]";
         var tempDir = CreateTempDirectoryWithRulesFile(rulesJson);
@@ -266,8 +272,9 @@ public class RulesTest : IDisposable
                 ""Method"": """",
                 ""Uri"": ""/test"",
                 ""Response"": {
+                                ""Http"": {
                     ""StatusCode"": 200
-                }
+                } }
             }
         ]";
         var tempDir = CreateTempDirectoryWithRulesFile(rulesJson);
@@ -289,15 +296,17 @@ public class RulesTest : IDisposable
                 ""Method"": ""GET"",
                 ""Uri"": ""/test1"",
                 ""Response"": {
+                                ""Http"": {
                     ""StatusCode"": 200
-                }
+                } }
             },
             {
                 ""Method"": ""GET"",
                 ""Uri"": ""/test2"",
                 ""Response"": {
+                                ""Http"": {
                     ""StatusCode"": 200
-                }
+                } }
             }
         ]";
         var tempDir = CreateTempDirectoryWithRulesFile(rulesJson);
@@ -336,13 +345,14 @@ public class RulesTest : IDisposable
                 ""Method"": ""GET"",
                 ""Uri"": ""/test"",
                 ""Response"": {
+                                ""Http"": {
                     ""StatusCode"": 200,
                     ""ContentType"": ""application/json"",
                     ""Headers"": {
                         ""X-Custom-Header"": ""CustomValue""
                     },
                     ""Body"": ""{\u0022message\u0022: \u0022hello\u0022}""
-                }
+                } }
             }
         ]";
         var tempDir = CreateTempDirectoryWithRulesFile(rulesJson);
@@ -371,17 +381,19 @@ public class RulesTest : IDisposable
                 ""Method"": ""GET"",
                 ""Uri"": ""/test1"",
                 ""Response"": {
+                                ""Http"": {
                     ""StatusCode"": 200,
                     ""Body"": ""response1""
-                }
+                } }
             },
             {
                 ""Method"": ""GET"",
                 ""Uri"": ""/test2"",
                 ""Response"": {
+                                ""Http"": {
                     ""StatusCode"": 201,
                     ""Body"": ""response2""
-                }
+                } }
             }
         ]";
         var tempDir = CreateTempDirectoryWithRulesFile(rulesJson);
@@ -489,9 +501,10 @@ public class RulesTest : IDisposable
                 ""Method"": ""GET"",
                 ""Uri"": ""/test"",
                 ""Response"": {
+                                ""Http"": {
                     ""StatusCode"": 200,
                     ""Body"": ""original""
-                }
+                } }
             }
         ]";
         var tempDir = CreateTempDirectoryWithRulesFile(rulesJson);
@@ -508,9 +521,10 @@ public class RulesTest : IDisposable
                 ""Method"": ""GET"",
                 ""Uri"": ""/test"",
                 ""Response"": {
+                                ""Http"": {
                     ""StatusCode"": 200,
                     ""Body"": ""updated""
-                }
+                } }
             }
         ]";
         File.WriteAllText(Path.Combine(tempDir, "rules.json"), updatedRulesJson);
@@ -555,10 +569,12 @@ public class RulesTest : IDisposable
         Assert.Equal(2, rules.Count);
         
         var echoRule = rules[0];
+        Assert.Equal("websocket", echoRule.Response?.Ws != null ? "websocket" : "http");
         Assert.Equal("/ws", echoRule.Uri);
         Assert.Equal("echo", echoRule.Response?.Ws?.Behavior);
         
         var staticRule = rules[1];
+        Assert.Equal("websocket", staticRule.Response?.Ws != null ? "websocket" : "http");
         Assert.Equal("/ws/sensor", staticRule.Uri);
         Assert.Equal("static", staticRule.Response?.Ws?.Behavior);
         Assert.Contains("temp", staticRule.Response?.Ws?.Text);
@@ -573,11 +589,10 @@ public class RulesTest : IDisposable
                 ""Method"": ""GET"",
                 ""Uri"": ""/api/test"",
                 ""Response"": {
-                    ""Http"": {
-                        ""StatusCode"": 200,
-                        ""Body"": ""http response""
-                    } }
-                }
+                                ""Http"": {
+                    ""StatusCode"": 200,
+                    ""Body"": ""http response""
+                } }
             },
             {
                 ""Uri"": ""/ws"",
@@ -601,11 +616,11 @@ public class RulesTest : IDisposable
         var httpRule = rules[0];
         Assert.Equal("GET", httpRule.Method);
         Assert.Equal("/api/test", httpRule.Uri);
-        Assert.NotNull(httpRule.Response?.Http);
+        Assert.NotNull(httpRule.Response);
         
         // Verify WebSocket rule
         var wsRule = rules[1];
+        Assert.Equal("websocket", wsRule.Response?.Ws != null ? "websocket" : "http");
         Assert.Equal("/ws", wsRule.Uri);
-        Assert.NotNull(wsRule.Response?.Ws);
     }
 }

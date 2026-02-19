@@ -110,15 +110,28 @@ public class Rules : IRules
         var httpRuleMap = new Dictionary<string, HttpResponse?>(StringComparer.OrdinalIgnoreCase);
         foreach (var r in rules)
         {
-            // Process only HTTP rules (those with Response.Http)
-            if (r.Response?.Http != null)
+            // Process HTTP rules - either has Response.Http or has no response at all
+            if (r.Response?.Ws == null)
             {
                 var path = r.Uri?.Trim();
                 if (string.IsNullOrWhiteSpace(path)) continue;
-                var method = r.Method?.Trim().ToUpperInvariant();
-                if (string.IsNullOrWhiteSpace(method)) method = "GET";
+                var method = string.IsNullOrWhiteSpace(r.Method) ? "GET" : r.Method.Trim().ToUpperInvariant();
                 var key = MakeKey(method, path);
-                httpRuleMap[key] = r.Response.Http;
+                
+                // If response is null or empty, create default 501 response
+                if (r.Response?.Http == null)
+                {
+                    httpRuleMap[key] = new HttpResponse 
+                    { 
+                        StatusCode = 501,
+                        ContentType = "text/plain",
+                        Body = "Not Implemented"
+                    };
+                }
+                else
+                {
+                    httpRuleMap[key] = r.Response.Http;
+                }
             }
         }
 

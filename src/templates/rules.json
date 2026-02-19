@@ -15,13 +15,7 @@
     },
     {
         "uri": "/api/noresp",
-        "method": "GET",
-        "response": {
-            "http": {
-                "statusCode": 501,
-                "body": "No response defined"
-            }
-        }
+        "method": "GET"
     },
     {
         "uri": "/ws",

@@ -27,6 +27,6 @@ public record RuleResponse
 public record Rule
 {
     public required string Uri { get; init; }
-    public string? Method { get; init; }
+    public string Method { get; init; } = "GET";
     public RuleResponse? Response { get; init; }
 }

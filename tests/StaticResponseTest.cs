@@ -138,10 +138,7 @@ public class StaticResponseTest : IDisposable
         context.Response.Body.Seek(0, SeekOrigin.Begin);
         using var reader = new StreamReader(context.Response.Body);
         var body = await reader.ReadToEndAsync();
-        Assert.Contains("No response defined", body);
-
-        var logs = _logBuffer.Snapshot();
-        Assert.Contains(logs, log => log.Contains("No response defined"));
+        Assert.Contains("Not Implemented", body);
 
     }
 

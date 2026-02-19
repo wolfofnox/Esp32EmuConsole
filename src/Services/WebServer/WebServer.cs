@@ -35,16 +35,12 @@ class WebServer
         // WebSocket handling with service (handles all WebSocket requests)
         _app.MapWs(_wsService);
 
-        _app.MapWhen(
-            ctx => !ctx.Request.Path.StartsWithSegments("/api"),
-            branch =>
-            {
-                branch.UseRouting();
-                branch.UseEndpoints(endpoints =>
-                {
-                    endpoints.MapReverseProxy();
-                });
-            });
+        // Reverse proxy for all remaining requests
+        _app.UseRouting();
+        _app.UseEndpoints(endpoints =>
+        {
+            endpoints.MapReverseProxy();
+        });
     }
 
     public Task StartAsync()

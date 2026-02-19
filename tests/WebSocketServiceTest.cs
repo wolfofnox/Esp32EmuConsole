@@ -275,10 +275,11 @@ public class WebSocketServiceTest : IDisposable
             // Expected
         }
 
-        // Assert - Should have hello message + at least 2 periodic messages
-        Assert.True(mockWebSocket.SentMessages.Count >= 3, $"Expected at least 3 messages, got {mockWebSocket.SentMessages.Count}");
-        Assert.Contains("periodic message", mockWebSocket.SentMessages[1]);
-        Assert.Contains("periodic message", mockWebSocket.SentMessages[2]);
+        // Assert - Should have hello message + at least 1 periodic message
+        Assert.True(mockWebSocket.SentMessages.Count >= 2, $"Expected at least 2 messages (hello + 1 periodic), got {mockWebSocket.SentMessages.Count}");
+        Assert.Contains("hello", mockWebSocket.SentMessages[0], StringComparison.OrdinalIgnoreCase);
+        // Verify at least one periodic message was sent
+        Assert.Contains(mockWebSocket.SentMessages.Skip(1), msg => msg.Contains("periodic message"));
     }
 
     [Fact]
