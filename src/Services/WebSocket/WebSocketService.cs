@@ -18,6 +18,17 @@ public class WebSocketService
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _loggerFactory = loggerFactory ?? throw new ArgumentNullException(nameof(loggerFactory));
         _rules = rules ?? throw new ArgumentNullException(nameof(rules));
+        
+        // Check for WebSocket rules at "/" and warn
+        var rootWsRules = _rules.GetRules().Where(r => 
+            r.Uri == "/" && r.Response?.Ws != null).ToList();
+        
+        if (rootWsRules.Any())
+        {
+            _logger.LogWarning(
+                "WebSocket rules defined at \"/\" will be ignored. This path is reserved for Vite HMR. " +
+                "Found {Count} rule(s) at this path.", rootWsRules.Count);
+        }
     }
 
     public async Task HandleConnectionAsync(WS webSocket, string path, CancellationToken cancellationToken = default)
@@ -32,10 +43,11 @@ public class WebSocketService
             var hello = System.Text.Json.JsonSerializer.Serialize(new { type = "hello", msg = "Connected" });
             var helloBytes = Encoding.UTF8.GetBytes(hello);
             await webSocket.SendAsync(helloBytes, WebSocketMessageType.Text, true, cancellationToken);
+            wsLogger.LogInformation("[SENT] {Message}", hello);
 
             // Start interval task if configured
             var intervalCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            _ = StartIntervalMessagesAsync(webSocket, path, intervalCts.Token);
+            _ = StartIntervalMessagesAsync(webSocket, path, wsLogger, intervalCts.Token);
 
             var buffer = new byte[MaxMessageBufferSize];
             while (webSocket.State == WebSocketState.Open && !cancellationToken.IsCancellationRequested)
@@ -49,22 +61,34 @@ public class WebSocketService
                     break;
                 }
 
-                // Log the bare message
+                // Log the bare received message
                 if (result.MessageType == WebSocketMessageType.Binary)
                 {
                     var hexMessage = Convert.ToHexString(buffer, 0, result.Count);
-                    wsLogger.LogInformation("[BINARY HEX] {Message}", hexMessage);
+                    wsLogger.LogInformation("[RECV BINARY HEX] {Message}", hexMessage);
                 }
                 else
                 {
                     var message = Encoding.UTF8.GetString(buffer, 0, result.Count);
-                    wsLogger.LogInformation("{Message}", message);
+                    wsLogger.LogInformation("[RECV] {Message}", message);
                 }
 
                 var (responseMessage, messageType) = GetResponseForPath(path, buffer, result.Count, result.MessageType);
                 if (responseMessage != null)
                 {
                     await webSocket.SendAsync(responseMessage, messageType, true, cancellationToken);
+                    
+                    // Log sent message
+                    if (messageType == WebSocketMessageType.Binary)
+                    {
+                        var hexMessage = Convert.ToHexString(responseMessage);
+                        wsLogger.LogInformation("[SENT BINARY HEX] {Message}", hexMessage);
+                    }
+                    else
+                    {
+                        var sentMessage = Encoding.UTF8.GetString(responseMessage);
+                        wsLogger.LogInformation("[SENT] {Message}", sentMessage);
+                    }
                 }
             }
 
@@ -95,7 +119,7 @@ public class WebSocketService
         }
     }
 
-    private async Task StartIntervalMessagesAsync(WS webSocket, string path, CancellationToken cancellationToken)
+    private async Task StartIntervalMessagesAsync(WS webSocket, string path, ILogger wsLogger, CancellationToken cancellationToken)
     {
         var rules = _rules.GetRules();
         var wsRule = rules.FirstOrDefault(r => 
@@ -126,14 +150,19 @@ public class WebSocketService
                     {
                         responseBytes = Convert.FromHexString(wsResponse.Binary);
                         messageType = WebSocketMessageType.Binary;
+                        await webSocket.SendAsync(responseBytes, messageType, true, cancellationToken);
+                        
+                        var hexMessage = Convert.ToHexString(responseBytes);
+                        wsLogger.LogInformation("[SENT INTERVAL BINARY HEX] {Message}", hexMessage);
                     }
                     else
                     {
                         responseBytes = Encoding.UTF8.GetBytes(responseData);
                         messageType = WebSocketMessageType.Text;
+                        await webSocket.SendAsync(responseBytes, messageType, true, cancellationToken);
+                        
+                        wsLogger.LogInformation("[SENT INTERVAL] {Message}", responseData);
                     }
-                    
-                    await webSocket.SendAsync(responseBytes, messageType, true, cancellationToken);
                 }
             }
         }

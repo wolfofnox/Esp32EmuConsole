@@ -8,7 +8,7 @@ public static class WSMapExtensions
     public static void MapWs(this IApplicationBuilder app, WebSocketService wsService)
     {
         app.UseWhen(
-            context => context.WebSockets.IsWebSocketRequest,
+            context => context.WebSockets.IsWebSocketRequest && context.Request.Path.Value != "/",
             builder =>
             {
                 builder.Run(async ctx =>
