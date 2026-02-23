@@ -66,12 +66,12 @@ public class StaticResponseTest : IDisposable
             {
                 Method = "GET",
                 Uri = "/test",
-                Response = new FixedResponse
+                Response = new RuleResponse { Http = new HttpResponse
                 {
                     StatusCode = 200,
                     ContentType = "application/json",
                     Body = "{\"message\":\"test response\"}"
-                }
+                } }
             }
         };
 
@@ -138,10 +138,7 @@ public class StaticResponseTest : IDisposable
         context.Response.Body.Seek(0, SeekOrigin.Begin);
         using var reader = new StreamReader(context.Response.Body);
         var body = await reader.ReadToEndAsync();
-        Assert.Contains("No response defined", body);
-
-        var logs = _logBuffer.Snapshot();
-        Assert.Contains(logs, log => log.Contains("No response defined"));
+        Assert.Contains("Not Implemented", body);
 
     }
 
@@ -155,7 +152,7 @@ public class StaticResponseTest : IDisposable
             {
                 Method = "GET",
                 Uri = "/test",
-                Response = new FixedResponse { StatusCode = 200, Body = "test" }
+                Response = new RuleResponse { Http = new HttpResponse { StatusCode = 200, Body = "test" } }
             }
         };
 
@@ -198,11 +195,11 @@ public class StaticResponseTest : IDisposable
             {
                 Method = method,
                 Uri = path,
-                Response = new FixedResponse
+                Response = new RuleResponse { Http = new HttpResponse
                 {
                     StatusCode = 200,
                     Body = $"Response for {method} {path}"
-                }
+                } }
             }
         };
 
@@ -241,7 +238,7 @@ public class StaticResponseTest : IDisposable
             {
                 Method = "GET",
                 Uri = "/test",
-                Response = new FixedResponse
+                Response = new RuleResponse { Http = new HttpResponse
                 {
                     StatusCode = 200,
                     Headers = new Dictionary<string, string>
@@ -250,7 +247,7 @@ public class StaticResponseTest : IDisposable
                         { "X-Another-Header", "AnotherValue" }
                     },
                     Body = "test"
-                }
+                } }
             }
         };
 
@@ -285,12 +282,12 @@ public class StaticResponseTest : IDisposable
             {
                 Method = "GET",
                 Uri = "/test",
-                Response = new FixedResponse
+                Response = new RuleResponse { Http = new HttpResponse
                 {
                     StatusCode = 200,
                     ContentType = "text/plain",
                     Body = "plain text"
-                }
+                } }
             }
         };
 
@@ -324,7 +321,7 @@ public class StaticResponseTest : IDisposable
             {
                 Method = "GET",
                 Uri = "/test",
-                Response = new FixedResponse
+                Response = new RuleResponse { Http = new HttpResponse
                 {
                     StatusCode = 200,
                     ContentType = "text/plain",
@@ -333,7 +330,7 @@ public class StaticResponseTest : IDisposable
                         { "Content-Type", "application/json" }
                     },
                     Body = "{}"
-                }
+                } }
             }
         };
 

@@ -38,7 +38,8 @@ builder.Services.AddKeyedSingleton("WsLogBuffer", wsBuf);
 // Register Vite in DI but do not start the process in constructor
 var cwd = Environment.CurrentDirectory;
 builder.Services.AddSingleton(sp => new Services.Vite(cwd, sp.GetRequiredService<ILogger<Services.Vite>>(), sp.GetRequiredService<ILoggerFactory>()));
-builder.Services.AddSingleton(sp => new Services.Rules(cwd, sp.GetRequiredService<ILogger<Services.Rules>>()));
+builder.Services.AddSingleton<Services.IRules>(sp => new Services.Rules(cwd, sp.GetRequiredService<ILogger<Services.Rules>>()));
+builder.Services.AddSingleton<Services.WebSocket.WebSocketService>();
 // YARP reverse proxy configuration targeting Vite
 builder.Services.AddReverseProxy().LoadFromMemory(
     routes: webConfig.GetProxyRoutes,
@@ -80,7 +81,7 @@ void EnsureConfigFiles()
         throw new DirectoryNotFoundException($"Template directory not found: {templateDir}");
     }
 
-    foreach (var f in new[] {"vite.config.js", "package.json"})
+    foreach (var f in new[] {"vite.config.js", "package.json", "rules.json", "index.html"})
     {
         var dest = Path.Combine(cwd, f);
         if (File.Exists(dest)) continue;

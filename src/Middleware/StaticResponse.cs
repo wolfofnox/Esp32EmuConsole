@@ -4,10 +4,10 @@ namespace Esp32EmuConsole.Middleware;
 public class StaticResponse
 {
     private readonly RequestDelegate _next;
-    private readonly Services.Rules _ruleService;
+    private readonly Services.IRules _ruleService;
     private readonly ILogger<StaticResponse> _logger;
 
-    public StaticResponse(RequestDelegate next, Services.Rules ruleService, ILogger<StaticResponse> logger)
+    public StaticResponse(RequestDelegate next, Services.IRules ruleService, ILogger<StaticResponse> logger)
     {
         _next = next ?? throw new ArgumentNullException(nameof(next));
         _ruleService = ruleService ?? throw new ArgumentNullException(nameof(ruleService));

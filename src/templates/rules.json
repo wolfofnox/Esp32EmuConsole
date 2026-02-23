@@ -1,18 +1,56 @@
 [
     {
-        "uri": "/api/hello", // (Required) URI to match
-        "method": "GET", // (Required) HTTP method to match
-        "response": { // (Optional) response, if not present, response asked at runtime
-            "statusCode": 200, // (Required) HTTP status code
-            "contentType": "text/plain", // (Optional) Content-Type header
-            "headers": { // (Optional) Additional headers
-                "Cache-Control": "no-cache"
-            },
-            "body": "Hello, World!" // (Optional) Response body
+        "uri": "/api/hello",
+        "method": "GET",
+        "response": {
+            "http": {
+                "statusCode": 200,
+                "contentType": "text/plain",
+                "headers": {
+                    "Cache-Control": "no-cache"
+                },
+                "body": "Hello, World!"
+            }
         }
     },
-    { // Example of a rule without a predefined response
+    {
         "uri": "/api/noresp",
         "method": "GET"
+    },
+    {
+        "uri": "/ws",
+        "response": {
+            "ws": {
+                "behavior": "echo"
+            }
+        }
+    },
+    {
+        "uri": "/ws/sensor",
+        "response": {
+            "ws": {
+                "behavior": "static",
+                "text": "{\"temp\":25.5,\"humidity\":60}"
+            }
+        }
+    },
+    {
+        "uri": "/ws/interval",
+        "response": {
+            "ws": {
+                "behavior": "interval",
+                "intervalMs": 1000,
+                "text": "{\"timestamp\":\"periodic_update\"}"
+            }
+        }
+    },
+    {
+        "uri": "/ws/binary",
+        "response": {
+            "ws": {
+                "behavior": "static",
+                "binary": "48656C6C6F20576F726C64"
+            }
+        }
     }
 ]

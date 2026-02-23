@@ -1,4 +1,5 @@
 using Esp32EmuConsole;
+using Esp32EmuConsole.Services.WebSocket;
 
 namespace Esp32EmuConsole.Services.WebServer;
 
@@ -6,7 +7,8 @@ class WebServer
 {
     private readonly ILogger<WebServer> _logger;
     private readonly Services.Vite _vite;
-    private readonly Services.Rules _rules;
+    private readonly Services.IRules _rules;
+    private readonly WebSocket.WebSocketService _wsService;
     private readonly Services.WebServer.Configuration _config;
     private readonly WebApplication _app;
     private Task? _serverTask;
@@ -16,7 +18,8 @@ class WebServer
         _app = app ?? throw new ArgumentNullException(nameof(app));
         _logger = _app.Services.GetRequiredService<ILogger<WebServer>>();
         _vite = _app.Services.GetRequiredService<Services.Vite>();
-        _rules = _app.Services.GetRequiredService<Services.Rules>();
+        _rules = _app.Services.GetRequiredService<Services.IRules>();
+        _wsService = _app.Services.GetRequiredService<WebSocket.WebSocketService>();
         _config = _app.Services.GetRequiredService<Services.WebServer.Configuration>();
     }
     public void Configure()
@@ -29,20 +32,15 @@ class WebServer
         // Use the static response middleware (short-circuits matching endpoints)
         _app.UseMiddleware<Middleware.StaticResponse>();
 
-        ////// TODO WebSocket???
-        _app.MapWs();
+        // WebSocket handling with service (handles all WebSocket requests)
+        _app.MapWs(_wsService);
 
-        _app.MapWhen(
-            ctx => !ctx.Request.Path.StartsWithSegments("/api") &&
-                !ctx.Request.Path.StartsWithSegments("/ws"),
-            branch =>
-            {
-                branch.UseRouting();
-                branch.UseEndpoints(endpoints =>
-                {
-                    endpoints.MapReverseProxy();
-                });
-            });
+        // Reverse proxy for all remaining requests
+        _app.UseRouting();
+        _app.UseEndpoints(endpoints =>
+        {
+            endpoints.MapReverseProxy();
+        });
     }
 
     public Task StartAsync()
