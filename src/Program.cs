@@ -81,7 +81,7 @@ void EnsureConfigFiles()
         throw new DirectoryNotFoundException($"Template directory not found: {templateDir}");
     }
 
-    foreach (var f in new[] {"vite.config.js", "package.json"})
+    foreach (var f in new[] {"vite.config.js", "package.json", "rules.json", "index.html"})
     {
         var dest = Path.Combine(cwd, f);
         if (File.Exists(dest)) continue;
