@@ -19,13 +19,14 @@ var appBuf = new Utilities.LogBuffer();
 var httpBuf = new Utilities.LogBuffer();
 var wsBuf = new Utilities.LogBuffer();
 builder.Logging.ClearProviders();
-builder.Logging.AddProvider(new Utilities.InMemoryLoggerProvider(new[]
+var loggingProvider = new Utilities.InMemoryLoggerProvider(new[]
 {
     new Utilities.LogRoute("fallback", LogLevel.Trace, Utilities.LogFormat.Full, appBuf),
     new Utilities.LogRoute("Yarp.ReverseProxy.*", LogLevel.Warning, Utilities.LogFormat.Full, appBuf),
     new Utilities.LogRoute("Http*,HTTP*,http*", LogLevel.Trace, Utilities.LogFormat.OmitCategory, httpBuf),
     new Utilities.LogRoute("WS*,Ws*,ws*,WebSocket*,websocket*", LogLevel.Trace, Utilities.LogFormat.OmitCategory, wsBuf),
-}));
+});
+builder.Logging.AddProvider(loggingProvider);
 
 // Register configs
 builder.Services.AddSingleton(webConfig);
@@ -49,6 +50,7 @@ builder.Services.AddReverseProxy().LoadFromMemory(
 builder.WebHost.UseUrls(webConfig.listenUrl);
 
 var app = builder.Build();
+app.Lifetime.ApplicationStopping.Register(() => loggingProvider.Dispose());
 
 // Application startup message using the logging system (category: "app")
 var _logger = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("app");
