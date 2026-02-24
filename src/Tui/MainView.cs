@@ -34,13 +34,13 @@ class MainView : Runnable
 
         _mainWindow = new Window()
         {
-            Title = "Esp32EmuConsole TUI",
+            Title = "Esp32EmuConsole",
 
             X = 0,
-            Y = 2,
+            Y = 1,
 
             Width = Dim.Fill(),
-            Height = Dim.Fill()-1
+            Height = Dim.Fill()
         };
 
         _menu = CreateMenu();
@@ -52,7 +52,7 @@ class MainView : Runnable
         _clientsFrame = CreateClientsFrame();
         _statsFrame = CreateStatsFrame();
         _mainWindow.Add(_appLogFrame, _httpLogFrame, _wsLogFrame, _clientsFrame, _statsFrame);
-        Add(_mainWindow, _menu);
+        Add(_menu, _mainWindow);
 
         UpdateLayout();
     }
@@ -189,9 +189,7 @@ class MainView : Runnable
                 }),
             }),
         })
-        {
-            Y = 1
-        };
+        { };
     }
 
     private void RebuildMenu()
