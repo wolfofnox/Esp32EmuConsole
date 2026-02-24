@@ -22,7 +22,8 @@ public class Vite : IDisposable
     private bool _started;
     private Channel<(bool IsError, string Line)>? _logChannel;
     private Task? _logPumpTask;
-    
+    private static readonly HttpClient _httpClient = new();
+
     public string Url => _url;
 
     public Vite(string workingDirectory, ILogger<Vite> logger, ILoggerFactory loggerFactory, string url = "http://localhost:5173")
@@ -188,12 +189,11 @@ public class Vite : IDisposable
     public async Task<bool> WaitForViteAsync(TimeSpan timeout)
     {
         var start = DateTime.UtcNow;
-        var http = new HttpClient();
         while (DateTime.UtcNow - start < timeout)
         {
             try
             {
-                using var resp = await http.GetAsync(_url);
+                using var resp = await _httpClient.GetAsync(_url);
                 if (resp.IsSuccessStatusCode)
                 {
                     _logger.LogInformation("Vite is ready at {Url}", _url);
