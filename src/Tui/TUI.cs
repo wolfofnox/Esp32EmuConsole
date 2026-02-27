@@ -5,6 +5,7 @@ using Terminal.Gui.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Esp32EmuConsole.Utilities;
+using Services = Esp32EmuConsole.Services;
 
 namespace Esp32EmuConsole.Tui;
 
@@ -40,6 +41,7 @@ public class TUI
             
             var mainView = new MainView(
                 _config, 
+                _services.GetRequiredService<Services.WebServer.Configuration>(),
                 _services.GetRequiredService<ILogger<MainView>>(),
                 appLogBuffer,
                 httpLogBuffer,

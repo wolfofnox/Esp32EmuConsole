@@ -18,15 +18,18 @@ class MainView : Runnable
     private TextView? _wsLogView;
     private readonly Window _mainWindow;
     private readonly Configuration _config;
+    private readonly Services.WebServer.Configuration _webConfig;
     private readonly ILogger<MainView> _logger;
     private readonly LogBuffer _appLogBuffer;
     private readonly LogBuffer _httpLogBuffer;
     private readonly LogBuffer _wsLogBuffer;
     private LogFilterState _currentFilter = LogFilterState.Empty;
+    private readonly DateTime _startTime = DateTime.Now;
     
-    public MainView(Configuration config, ILogger<MainView> logger, LogBuffer appLogBuffer, LogBuffer httpLogBuffer, LogBuffer wsLogBuffer)
+    public MainView(Configuration config, Services.WebServer.Configuration webConfig, ILogger<MainView> logger, LogBuffer appLogBuffer, LogBuffer httpLogBuffer, LogBuffer wsLogBuffer)
     {
         _config = config ?? throw new ArgumentNullException(nameof(config));
+        _webConfig = webConfig ?? throw new ArgumentNullException(nameof(webConfig));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _appLogBuffer = appLogBuffer ?? throw new ArgumentNullException(nameof(appLogBuffer));
         _httpLogBuffer = httpLogBuffer ?? throw new ArgumentNullException(nameof(httpLogBuffer));
@@ -157,9 +160,32 @@ class MainView : Runnable
             Width = Dim.Fill(),
             Height = Dim.Fill()
         };
-        // simple placeholders
-        frame.Add(new Label() { Text = "No stats available yet.",X = 0, Y = 0 });
+
+        var serverLabel = new Label() { Text = $"Server URL : {_webConfig.listenUrl}", X = 0, Y = 0 };
+        var viteLabel   = new Label() { Text = $"Vite URL   : {_webConfig.viteUrl}",   X = 0, Y = 1 };
+        var startLabel  = new Label() { Text = $"Started    : {_startTime:yyyy-MM-dd HH:mm:ss}", X = 0, Y = 2 };
+
+        // Uptime label updated every second via a System.Threading.Timer
+        var uptimeLabel = new Label() { Text = GetUptimeText(), X = 0, Y = 3 };
+        var uptimeTimer = new System.Threading.Timer(_ =>
+        {
+            if (frame.Visible && App != null)
+            {
+                App.Invoke(() => { uptimeLabel.Text = GetUptimeText(); });
+            }
+        }, null, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(1));
+
+        // Stop the timer when the frame is destroyed
+        frame.Disposing += (_, _) => uptimeTimer.Dispose();
+
+        frame.Add(serverLabel, viteLabel, startLabel, uptimeLabel);
         return frame;
+    }
+
+    private string GetUptimeText()
+    {
+        var uptime = DateTime.Now - _startTime;
+        return $"Uptime     : {(int)uptime.TotalHours:D2}:{uptime.Minutes:D2}:{uptime.Seconds:D2}";
     }
 
     private MenuBar CreateMenu()
