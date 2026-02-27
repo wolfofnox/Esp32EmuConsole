@@ -2,7 +2,6 @@ using Esp32EmuConsole.Utilities;
 using Terminal.Gui.ViewBase;
 using Terminal.Gui.Views;
 using Terminal.Gui.App;
-using System.Runtime.Intrinsics.X86;
 
 namespace Esp32EmuConsole.Tui;
 
@@ -23,6 +22,7 @@ class MainView : Runnable
     private readonly LogBuffer _appLogBuffer;
     private readonly LogBuffer _httpLogBuffer;
     private readonly LogBuffer _wsLogBuffer;
+    private LogFilterState _currentFilter = LogFilterState.Empty;
     
     public MainView(Configuration config, ILogger<MainView> logger, LogBuffer appLogBuffer, LogBuffer httpLogBuffer, LogBuffer wsLogBuffer)
     {
@@ -84,7 +84,7 @@ class MainView : Runnable
         // Subscribe to new log events to update the view with live data when visible
         logBuffer.NewLog += (line) =>
         {
-            if (frame.Visible && App != null)
+            if (frame.Visible && App != null && _currentFilter.Matches(line))
             {
                 App.Invoke(() =>
                 {
@@ -102,7 +102,7 @@ class MainView : Runnable
             {
                 App.Invoke(() =>
                 {
-                    tv.Text = string.Join("\n", logBuffer.Snapshot());
+                    tv.Text = string.Join("\n", logBuffer.Snapshot().Where(l => _currentFilter.Matches(l)));
                     // Autoscroll to the end
                     tv.MoveEnd();
                 });
@@ -111,6 +111,25 @@ class MainView : Runnable
         
         frame.Add(tv);
         return frame;
+    }
+
+    private void ApplyFilterToAll()
+    {
+        App?.Invoke(() =>
+        {
+            ApplyFilterToView(_appLogFrame, _appLogView, _appLogBuffer);
+            ApplyFilterToView(_httpLogFrame, _httpLogView, _httpLogBuffer);
+            ApplyFilterToView(_wsLogFrame, _wsLogView, _wsLogBuffer);
+        });
+    }
+
+    private void ApplyFilterToView(FrameView? frame, TextView? view, LogBuffer buffer)
+    {
+        if (frame?.Visible == true && view != null)
+        {
+            view.Text = string.Join("\n", buffer.Snapshot().Where(l => _currentFilter.Matches(l)));
+            view.MoveEnd();
+        }
     }
 
     private FrameView CreateClientsFrame()
@@ -145,6 +164,7 @@ class MainView : Runnable
 
     private MenuBar CreateMenu()
     {
+        var filterIndicator = _currentFilter.IsActive ? " [filtered]" : "";
         return new MenuBar(new MenuBarItem[]
         {
             new MenuBarItem("(use Alt)", new MenuItem[0]),
@@ -173,9 +193,6 @@ class MainView : Runnable
                 new MenuItem((_config.showStats ? "[x] " : "[ ] ") + "_Stats", "", () => { _config.showStats = !_config.showStats; UpdateLayout(); RebuildMenu(); }),
                 new MenuItem((_config.showHttpTraffic ? "[x] " : "[ ] ") + "_HTTP traffic", "", () => { _config.showHttpTraffic = !_config.showHttpTraffic; UpdateLayout(); RebuildMenu(); }),
                 new MenuItem((_config.showWebSocketTraffic ? "[x] " : "[ ] ") + "_WebSocket traffic", "", () => { _config.showWebSocketTraffic = !_config.showWebSocketTraffic; UpdateLayout(); RebuildMenu(); }),
-                // null,
-                // new MenuItem((_config.tabView ? "[x] " : "[ ] ") + "_Tab view", "", () => { _config.tabView = true; _config.splitView = false; UpdateLayout(); RebuildMenu(); }),
-                // new MenuItem((_config.splitView ? "[x] " : "[ ] ") + "S_plit view", "", () => { _config.splitView = true; _config.tabView = false; UpdateLayout(); RebuildMenu(); }),
                 null,
                 new MenuItem("Clea_r logs", "", () => 
                 { 
@@ -186,6 +203,25 @@ class MainView : Runnable
                     // Clear the text in all visible log views
                     ClearLogViews();
                     _logger.LogInformation("All logs cleared by user.");
+                }),
+            }),
+            new MenuBarItem("_Search", new MenuItem[]
+            {
+                new MenuItem("Search / _Filter Logs..." + filterIndicator, "", () =>
+                {
+                    var newFilter = SearchFilterDialog.Show(App!, _currentFilter);
+                    if (newFilter != null)
+                    {
+                        _currentFilter = newFilter;
+                        ApplyFilterToAll();
+                        RebuildMenu();
+                    }
+                }),
+                new MenuItem("_Clear Filter", "", () =>
+                {
+                    _currentFilter = LogFilterState.Empty;
+                    ApplyFilterToAll();
+                    RebuildMenu();
                 }),
             }),
         })
