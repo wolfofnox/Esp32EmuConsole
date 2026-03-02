@@ -2,7 +2,6 @@ using Esp32EmuConsole.Utilities;
 using Terminal.Gui.ViewBase;
 using Terminal.Gui.Views;
 using Terminal.Gui.App;
-using System.Runtime.Intrinsics.X86;
 
 namespace Esp32EmuConsole.Tui;
 
@@ -19,14 +18,18 @@ class MainView : Runnable
     private TextView? _wsLogView;
     private readonly Window _mainWindow;
     private readonly Configuration _config;
+    private readonly Services.WebServer.Configuration _webConfig;
     private readonly ILogger<MainView> _logger;
     private readonly LogBuffer _appLogBuffer;
     private readonly LogBuffer _httpLogBuffer;
     private readonly LogBuffer _wsLogBuffer;
+    private LogFilterState _currentFilter = LogFilterState.Empty;
+    private readonly DateTime _startTime = DateTime.Now;
     
-    public MainView(Configuration config, ILogger<MainView> logger, LogBuffer appLogBuffer, LogBuffer httpLogBuffer, LogBuffer wsLogBuffer)
+    public MainView(Configuration config, Services.WebServer.Configuration webConfig, ILogger<MainView> logger, LogBuffer appLogBuffer, LogBuffer httpLogBuffer, LogBuffer wsLogBuffer)
     {
         _config = config ?? throw new ArgumentNullException(nameof(config));
+        _webConfig = webConfig ?? throw new ArgumentNullException(nameof(webConfig));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _appLogBuffer = appLogBuffer ?? throw new ArgumentNullException(nameof(appLogBuffer));
         _httpLogBuffer = httpLogBuffer ?? throw new ArgumentNullException(nameof(httpLogBuffer));
@@ -34,13 +37,13 @@ class MainView : Runnable
 
         _mainWindow = new Window()
         {
-            Title = "Esp32EmuConsole TUI",
+            Title = "Esp32EmuConsole",
 
             X = 0,
-            Y = 2,
+            Y = 1,
 
             Width = Dim.Fill(),
-            Height = Dim.Fill()-1
+            Height = Dim.Fill()
         };
 
         _menu = CreateMenu();
@@ -52,7 +55,7 @@ class MainView : Runnable
         _clientsFrame = CreateClientsFrame();
         _statsFrame = CreateStatsFrame();
         _mainWindow.Add(_appLogFrame, _httpLogFrame, _wsLogFrame, _clientsFrame, _statsFrame);
-        Add(_mainWindow, _menu);
+        Add(_menu, _mainWindow);
 
         UpdateLayout();
     }
@@ -84,7 +87,7 @@ class MainView : Runnable
         // Subscribe to new log events to update the view with live data when visible
         logBuffer.NewLog += (line) =>
         {
-            if (frame.Visible && App != null)
+            if (frame.Visible && App != null && _currentFilter.Matches(line))
             {
                 App.Invoke(() =>
                 {
@@ -102,7 +105,7 @@ class MainView : Runnable
             {
                 App.Invoke(() =>
                 {
-                    tv.Text = string.Join("\n", logBuffer.Snapshot());
+                    tv.Text = string.Join("\n", logBuffer.Snapshot().Where(l => _currentFilter.Matches(l)));
                     // Autoscroll to the end
                     tv.MoveEnd();
                 });
@@ -111,6 +114,25 @@ class MainView : Runnable
         
         frame.Add(tv);
         return frame;
+    }
+
+    private void ApplyFilterToAll()
+    {
+        App?.Invoke(() =>
+        {
+            ApplyFilterToView(_appLogFrame, _appLogView, _appLogBuffer);
+            ApplyFilterToView(_httpLogFrame, _httpLogView, _httpLogBuffer);
+            ApplyFilterToView(_wsLogFrame, _wsLogView, _wsLogBuffer);
+        });
+    }
+
+    private void ApplyFilterToView(FrameView? frame, TextView? view, LogBuffer buffer)
+    {
+        if (frame?.Visible == true && view != null)
+        {
+            view.Text = string.Join("\n", buffer.Snapshot().Where(l => _currentFilter.Matches(l)));
+            view.MoveEnd();
+        }
     }
 
     private FrameView CreateClientsFrame()
@@ -138,13 +160,37 @@ class MainView : Runnable
             Width = Dim.Fill(),
             Height = Dim.Fill()
         };
-        // simple placeholders
-        frame.Add(new Label() { Text = "No stats available yet.",X = 0, Y = 0 });
+
+        var serverLabel = new Label() { Text = $"Server URL : {_webConfig.listenUrl}", X = 0, Y = 0 };
+        var viteLabel   = new Label() { Text = $"Vite URL   : {_webConfig.viteUrl}",   X = 0, Y = 1 };
+        var startLabel  = new Label() { Text = $"Started    : {_startTime:yyyy-MM-dd HH:mm:ss}", X = 0, Y = 2 };
+
+        // Uptime label updated every second via a System.Threading.Timer
+        var uptimeLabel = new Label() { Text = GetUptimeText(), X = 0, Y = 3 };
+        var uptimeTimer = new System.Threading.Timer(_ =>
+        {
+            if (frame.Visible && App != null)
+            {
+                App.Invoke(() => { uptimeLabel.Text = GetUptimeText(); });
+            }
+        }, null, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(1));
+
+        // Stop the timer when the frame is destroyed
+        frame.Disposing += (_, _) => uptimeTimer.Dispose();
+
+        frame.Add(serverLabel, viteLabel, startLabel, uptimeLabel);
         return frame;
+    }
+
+    private string GetUptimeText()
+    {
+        var uptime = DateTime.Now - _startTime;
+        return $"Uptime     : {(int)uptime.TotalHours:D2}:{uptime.Minutes:D2}:{uptime.Seconds:D2}";
     }
 
     private MenuBar CreateMenu()
     {
+        var filterIndicator = _currentFilter.IsActive ? " [filtered]" : "";
         return new MenuBar(new MenuBarItem[]
         {
             new MenuBarItem("(use Alt)", new MenuItem[0]),
@@ -173,9 +219,6 @@ class MainView : Runnable
                 new MenuItem((_config.showStats ? "[x] " : "[ ] ") + "_Stats", "", () => { _config.showStats = !_config.showStats; UpdateLayout(); RebuildMenu(); }),
                 new MenuItem((_config.showHttpTraffic ? "[x] " : "[ ] ") + "_HTTP traffic", "", () => { _config.showHttpTraffic = !_config.showHttpTraffic; UpdateLayout(); RebuildMenu(); }),
                 new MenuItem((_config.showWebSocketTraffic ? "[x] " : "[ ] ") + "_WebSocket traffic", "", () => { _config.showWebSocketTraffic = !_config.showWebSocketTraffic; UpdateLayout(); RebuildMenu(); }),
-                // null,
-                // new MenuItem((_config.tabView ? "[x] " : "[ ] ") + "_Tab view", "", () => { _config.tabView = true; _config.splitView = false; UpdateLayout(); RebuildMenu(); }),
-                // new MenuItem((_config.splitView ? "[x] " : "[ ] ") + "S_plit view", "", () => { _config.splitView = true; _config.tabView = false; UpdateLayout(); RebuildMenu(); }),
                 null,
                 new MenuItem("Clea_r logs", "", () => 
                 { 
@@ -188,10 +231,27 @@ class MainView : Runnable
                     _logger.LogInformation("All logs cleared by user.");
                 }),
             }),
+            new MenuBarItem("_Search", new MenuItem[]
+            {
+                new MenuItem("Search / _Filter Logs..." + filterIndicator, "", () =>
+                {
+                    var newFilter = SearchFilterDialog.Show(App!, _currentFilter);
+                    if (newFilter != null)
+                    {
+                        _currentFilter = newFilter;
+                        ApplyFilterToAll();
+                        RebuildMenu();
+                    }
+                }),
+                new MenuItem("_Clear Filter", "", () =>
+                {
+                    _currentFilter = LogFilterState.Empty;
+                    ApplyFilterToAll();
+                    RebuildMenu();
+                }),
+            }),
         })
-        {
-            Y = 1
-        };
+        { };
     }
 
     private void RebuildMenu()
