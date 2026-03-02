@@ -37,39 +37,49 @@ It combines an HTTP mock server, a WebSocket emulator, an embedded Vite dev serv
 
 ## Prerequisites
 
-- [.NET 9 SDK](https://dotnet.microsoft.com/download) or later
 - [Node.js](https://nodejs.org/) (LTS recommended) and **npm** — required to run the embedded Vite dev server
 
 ---
 
 ## Getting Started
 
-1. **Clone the repository**
+### Option 1 — Pre-built release (recommended)
 
-   ```bash
-   git clone https://github.com/wolfofnox/Esp32EmuConsole.git
-   cd Esp32EmuConsole
+1. Download the latest release from the [GitHub Releases page](https://github.com/wolfofnox/Esp32EmuConsole/releases).
+   Unzip `v1.0.0.zip` to any folder.
+
+2. Open a terminal in the folder where you want your project files to live (e.g. `C:\MyProject`), then run the executable:
+
+   ```cmd
+   path\to\Esp32EmuConsole.exe
    ```
 
-2. **Run the application**
+   On first launch the app copies `rules.json`, `vite.config.js`, `package.json`, and `index.html` into the **current working directory**.
 
-   ```bash
-   dotnet run --project src
-   ```
+3. In the same working directory, install the Vite front-end dependencies once:
 
-   On first launch, the app copies template files (`rules.json`, `vite.config.js`, `package.json`, `index.html`) into the **current working directory** if they do not already exist.
-
-3. **Install front-end dependencies** (once, in the same directory)
-
-   ```bash
+   ```cmd
    npm install
    ```
 
-   > The Vite dev server is started automatically by Esp32EmuConsole, so you do not need to run `npm run dev` manually.
+   > This is only needed the first time (or whenever `node_modules` is missing from the working directory).
+   > After that, the app starts the Vite dev server automatically on every launch.
 
-4. **Open your browser**
+4. Open your browser and navigate to `http://localhost:5000`.
 
-   Navigate to `http://localhost:5000`. Static API endpoints are served by the mock server; everything else is proxied to Vite at `http://localhost:5173`.
+---
+
+### Option 2 — Build from source
+
+Requires the [.NET 10 SDK](https://dotnet.microsoft.com/download).
+
+```bash
+git clone https://github.com/wolfofnox/Esp32EmuConsole.git
+cd Esp32EmuConsole
+dotnet run --project src
+```
+
+On first launch, config files are copied to the working directory as above. Run `npm install` once in that directory if `node_modules` is missing.
 
 ---
 
