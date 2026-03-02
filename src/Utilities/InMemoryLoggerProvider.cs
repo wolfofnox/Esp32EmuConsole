@@ -8,13 +8,31 @@ namespace Esp32EmuConsole.Utilities;
 
 public enum LogFormat
 {
+    /// <summary>Include the logger category name in the formatted line.</summary>
     Full,
+    /// <summary>Omit the logger category name from the formatted line.</summary>
     OmitCategory,
 }
 
+/// <summary>
+/// Associates a set of category-name filter patterns with a minimum log level, a formatting
+/// mode, and one or more output destinations (<see cref="LogBuffer"/> and/or <see cref="TextWriter"/>).
+/// </summary>
 public record struct LogRoute(string CategoryFilters, LogLevel MinimumLevel, LogFormat Format, LogBuffer? LogBuffer = null, TextWriter? Writer = null);
 
 
+/// <summary>
+/// <see cref="ILoggerProvider"/> implementation that routes log messages to one or more
+/// in-memory <see cref="LogBuffer"/> instances (and/or <see cref="TextWriter"/> targets)
+/// according to glob-style category-name patterns.
+///
+/// <para>
+/// Each <see cref="LogRoute"/> entry specifies a comma-separated list of category-name
+/// patterns (wildcards <c>*</c> and the special keyword <c>fallback</c> are supported),
+/// a minimum <see cref="LogLevel"/>, and output destinations. A logger whose category
+/// matches no patterns is forwarded to every route marked as <em>fallback</em>.
+/// </para>
+/// </summary>
 public class InMemoryLoggerProvider : ILoggerProvider
 {
     private readonly LogRoute[] _routes;

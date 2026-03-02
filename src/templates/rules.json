@@ -1,4 +1,46 @@
+// rules.json — Esp32EmuConsole mock server configuration
+//
+// This file is an array of rule objects. Each rule matches an incoming HTTP or
+// WebSocket request by URI (and optional HTTP method) and returns a fixed response.
+//
+// The file is watched at runtime. Saving it reloads all rules immediately without
+// restarting the application.
+//
+// JSON comments (// and /* */) and trailing commas are supported.
+//
+// ── HTTP rule fields ────────────────────────────────────────────────────────────
+//  uri         (required) Request path to match, e.g. "/api/data". Case-insensitive.
+//  method      (optional) HTTP verb to match. Defaults to "GET".
+//              Supported values: GET, POST, PUT, DELETE, PATCH, or any custom verb.
+//  response
+//    .http
+//      .statusCode   (required) HTTP status code to return (e.g. 200, 404, 501).
+//      .contentType  (optional) Sets the Content-Type header.
+//                    Ignored if "Content-Type" is also listed under .headers.
+//      .headers      (optional) Key/value map of additional response headers.
+//      .body         (optional) Response body as a plain string.
+//
+// Omitting the "response" field entirely registers the URI as a known stub that
+// returns 501 Not Implemented — useful as a placeholder.
+//
+// ── WebSocket rule fields ────────────────────────────────────────────────────────
+//  uri         (required) WebSocket path, e.g. "/ws/sensor".
+//              Note: "/" is reserved for Vite HMR and cannot be used here.
+//  response
+//    .ws
+//      .behavior   (required) One of: "echo", "static", or "interval".
+//                    echo     — reflects each incoming message back to the sender.
+//                    static   — sends a fixed text/binary payload per incoming message.
+//                    interval — pushes a text/binary payload every .intervalMs ms.
+//      .text       (optional) Plain-text payload sent by "static" and "interval".
+//      .binary     (optional) Binary payload as an uppercase hex string (e.g. "48656C6C6F").
+//                  When both .text and .binary are present, .binary takes priority.
+//      .intervalMs (required for "interval") Push interval in milliseconds.
+//
 [
+    // ── HTTP examples ────────────────────────────────────────────────────────────
+
+    // Simple GET endpoint — returns a plain-text greeting.
     {
         "uri": "/api/hello",
         "method": "GET",
@@ -13,10 +55,17 @@
             }
         }
     },
+
+    // Stub endpoint — no response defined, so the server returns 501 Not Implemented.
+    // Useful for registering an endpoint that is not yet implemented.
     {
         "uri": "/api/noresp",
         "method": "GET"
     },
+
+    // ── WebSocket examples ───────────────────────────────────────────────────────
+
+    // Echo behavior — every message received is sent back unchanged.
     {
         "uri": "/ws",
         "response": {
@@ -25,6 +74,8 @@
             }
         }
     },
+
+    // Static behavior (text) — sends a fixed JSON payload in response to each message.
     {
         "uri": "/ws/sensor",
         "response": {
@@ -34,6 +85,8 @@
             }
         }
     },
+
+    // Interval behavior — pushes a JSON payload to the client every 1 000 ms.
     {
         "uri": "/ws/interval",
         "response": {
@@ -44,6 +97,8 @@
             }
         }
     },
+
+    // Static behavior (binary) — sends a fixed binary payload (hex-encoded "Hello World").
     {
         "uri": "/ws/binary",
         "response": {

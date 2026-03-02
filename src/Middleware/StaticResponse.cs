@@ -1,6 +1,13 @@
 
 namespace Esp32EmuConsole.Middleware;
 
+/// <summary>
+/// ASP.NET Core middleware that intercepts incoming HTTP requests and returns a
+/// pre-configured static response when the request URI and method match a rule
+/// defined in <c>rules.json</c>.
+/// Requests that do not match any rule are forwarded to the next middleware in
+/// the pipeline (typically the YARP reverse proxy targeting Vite).
+/// </summary>
 public class StaticResponse
 {
     private readonly RequestDelegate _next;

@@ -4,6 +4,16 @@ using WS = System.Net.WebSockets.WebSocket;
 
 namespace Esp32EmuConsole.Services.WebSocket;
 
+/// <summary>
+/// Handles WebSocket connections by looking up the requested path in <c>rules.json</c>
+/// and applying the configured behavior:
+/// <list type="bullet">
+///   <item><b>echo</b> — reflects every incoming message back to the sender.</item>
+///   <item><b>static</b> — sends a fixed text or binary payload per incoming message.</item>
+///   <item><b>interval</b> — pushes a text or binary payload on a recurring timer.</item>
+/// </list>
+/// All connections receive an initial <c>{"type":"hello","msg":"Connected"}</c> greeting.
+/// </summary>
 public class WebSocketService
 {
     private const int MaxMessageBufferSize = 4096;

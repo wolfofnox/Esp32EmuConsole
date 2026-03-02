@@ -2,6 +2,13 @@ using System.Text.Json;
 
 namespace Esp32EmuConsole.Services;
 
+/// <summary>
+/// Loads, caches, and hot-reloads the mock-server rules defined in <c>rules.json</c>.
+/// Rules are indexed by a <c>"METHOD /path"</c> key for O(1) HTTP look-ups.
+/// A <see cref="FileSystemWatcher"/> automatically reloads the file when it changes on disk.
+/// All public members are thread-safe; concurrent readers are handled via a
+/// <see cref="ReaderWriterLockSlim"/>.
+/// </summary>
 public class Rules : IRules
 {
     private readonly string _rulesPath;

@@ -3,6 +3,14 @@ using Esp32EmuConsole.Services.WebSocket;
 
 namespace Esp32EmuConsole.Services.WebServer;
 
+/// <summary>
+/// Configures and manages the ASP.NET Core <see cref="WebApplication"/> pipeline:
+/// <list type="bullet">
+///   <item>Registers the <see cref="Middleware.ResponseLogger"/> and <see cref="Middleware.StaticResponse"/> middleware.</item>
+///   <item>Maps WebSocket connections to <see cref="WebSocketService"/>.</item>
+///   <item>Adds the YARP reverse proxy as a catch-all fallback to Vite.</item>
+/// </list>
+/// </summary>
 class WebServer
 {
     private readonly ILogger<WebServer> _logger;
