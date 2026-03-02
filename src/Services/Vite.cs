@@ -10,6 +10,16 @@ using Microsoft.Extensions.Logging;
 
 namespace Esp32EmuConsole.Services;
 
+/// <summary>
+/// Manages the lifecycle of the Vite dev-server child process (<c>npm run dev</c>).
+/// <list type="bullet">
+///   <item>Spawns the process via Win32 <c>CreateProcess</c> with inherited pipes for stdout/stderr.</item>
+///   <item>Assigns the child to a Windows Job Object so it is killed automatically when the parent exits.</item>
+///   <item>Routes Vite console output to the in-memory logging system (category: <c>"vite"</c>).</item>
+///   <item><see cref="WaitForViteAsync"/> polls the Vite HTTP endpoint until it is ready or times out.</item>
+/// </list>
+/// <b>Windows only.</b> Uses P/Invoke for <c>kernel32.dll</c> APIs.
+/// </summary>
 public class Vite : IDisposable
 {
     private Process? _proc;

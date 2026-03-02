@@ -1,6 +1,12 @@
 
 namespace Esp32EmuConsole.Middleware;
 
+/// <summary>
+/// ASP.NET Core middleware that logs each HTTP request and the status code of its
+/// response to the in-memory HTTP log buffer (category: <c>"HTTP"</c>).
+/// The log line is emitted <em>after</em> the rest of the pipeline has processed
+/// the request so that the final status code is available.
+/// </summary>
 public class ResponseLogger
 {
     private readonly RequestDelegate _next;

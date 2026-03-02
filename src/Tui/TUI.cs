@@ -10,6 +10,12 @@ using Services = Esp32EmuConsole.Services;
 namespace Esp32EmuConsole.Tui;
 
 
+/// <summary>
+/// Entry point for the Terminal.Gui-based user interface.
+/// Initializes the Terminal.Gui application, applies the Amber Phosphor colour theme,
+/// constructs the <see cref="MainView"/>, and blocks on the UI event loop until the
+/// user requests a quit.
+/// </summary>
 public class TUI
 {
     private readonly ILogger<TUI> _logger;

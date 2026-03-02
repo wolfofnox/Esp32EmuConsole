@@ -5,6 +5,12 @@ using Terminal.Gui.App;
 
 namespace Esp32EmuConsole.Tui;
 
+/// <summary>
+/// Root Terminal.Gui view for Esp32EmuConsole.
+/// Arranges log panels (App, HTTP, WebSocket), a Connected Clients panel, and a Stats
+/// panel according to the active <see cref="Configuration"/> flags, and wires up the
+/// menu bar for toggling panels, clearing logs, and filtering log output.
+/// </summary>
 class MainView : Runnable
 {
     private MenuBar _menu;
