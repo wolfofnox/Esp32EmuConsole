@@ -31,13 +31,15 @@ class MainView : Runnable
     private readonly LogBuffer _wsLogBuffer;
     private LogFilterState _currentFilter = LogFilterState.Empty;
     private readonly DateTime _startTime = DateTime.Now;
+    private readonly Services.Vite _vite;
     
-    public MainView(Configuration config, Services.WebServer.Configuration webConfig, ILogger<MainView> logger, LogBuffer appLogBuffer, LogBuffer httpLogBuffer, LogBuffer wsLogBuffer)
+    public MainView(Configuration config, Services.WebServer.Configuration webConfig, ILogger<MainView> logger, LogBuffer appLogBuffer, LogBuffer httpLogBuffer, LogBuffer wsLogBuffer, Services.Vite vite)
     {
         _config = config ?? throw new ArgumentNullException(nameof(config));
         _webConfig = webConfig ?? throw new ArgumentNullException(nameof(webConfig));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _appLogBuffer = appLogBuffer ?? throw new ArgumentNullException(nameof(appLogBuffer));
+        _vite = vite ?? throw new ArgumentNullException(nameof(vite));
         _httpLogBuffer = httpLogBuffer ?? throw new ArgumentNullException(nameof(httpLogBuffer));
         _wsLogBuffer = wsLogBuffer ?? throw new ArgumentNullException(nameof(wsLogBuffer));
 
@@ -205,6 +207,32 @@ class MainView : Runnable
                 new MenuItem("_Quit", "", () => 
                 {
                     App!.RequestStop();
+                }),
+                new MenuItem("_Open in browser", "", () =>
+                {
+                    try
+                    {
+                        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                        {
+                            FileName = _webConfig.listenUrl,
+                            UseShellExecute = true
+                        });
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Failed to open URL in browser.");
+                    }
+                }),
+                new MenuItem("_Build webpage", "", () =>
+                {
+                    try
+                    {
+                        _vite.Build();
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Failed to trigger Vite build.");
+                    }
                 })
             }),
             new MenuBarItem("_Edit", new MenuItem[]

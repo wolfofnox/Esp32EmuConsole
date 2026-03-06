@@ -1,6 +1,7 @@
 using System;
 using System.Diagnostics;
 using System.Net.Http;
+using System.Text.RegularExpressions;
 using System.IO;
 using System.Threading.Channels;
 using System.Threading.Tasks;
@@ -26,12 +27,15 @@ public class Vite : IDisposable
     private IntPtr _jobHandle = IntPtr.Zero;
     private readonly ILogger<Vite> _logger;
     private readonly ILogger _loggerVite;
+    private readonly ILogger _loggerBuild;
     private readonly string _working_directory;
     private readonly string _url;
     private CancellationTokenSource? _cts;
     private bool _started;
     private Channel<(bool IsError, string Line)>? _logChannel;
     private Task? _logPumpTask;
+    private Task? _logPumpTask2;
+    private static readonly Regex _ansiRegex = new("\u001B\\[[0-?]*[ -/]*[@-~]", RegexOptions.Compiled);
     private static readonly HttpClient _httpClient = new();
 
     public string Url => _url;
@@ -43,6 +47,7 @@ public class Vite : IDisposable
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         if (loggerFactory is null) throw new ArgumentNullException(nameof(loggerFactory));
         _loggerVite = loggerFactory.CreateLogger("vite");
+        _loggerBuild = loggerFactory.CreateLogger("npm build");
         _started = false;
     }
 
@@ -112,10 +117,11 @@ public class Vite : IDisposable
                     {
                         try
                         {
+                            var cleaned = _ansiRegex.Replace(item.Line, string.Empty);
                             if (item.IsError)
-                                _loggerVite.LogError(item.Line);
+                                _loggerVite.LogError(cleaned);
                             else
-                                _loggerVite.LogInformation(item.Line);
+                                _loggerVite.LogInformation(cleaned);
                         }
                         catch { }
                     }
@@ -270,6 +276,105 @@ public class Vite : IDisposable
         }
     }
 
+    public void Build()
+    {
+        _logger.LogInformation("Starting npm build in {WorkingDirectory}", _working_directory);
+
+        var sa = new NativeMethods.SECURITY_ATTRIBUTES();
+        sa.nLength = Marshal.SizeOf<NativeMethods.SECURITY_ATTRIBUTES>();
+        sa.bInheritHandle = true;
+        sa.lpSecurityDescriptor = IntPtr.Zero;
+
+        var saPtr = Marshal.AllocHGlobal(Marshal.SizeOf<NativeMethods.SECURITY_ATTRIBUTES>());
+        try
+        {
+            Marshal.StructureToPtr(sa, saPtr, false);
+
+            if (!NativeMethods.CreatePipe(out var parentStdOutRead, out var childStdOutWrite, saPtr, 0))
+                throw new InvalidOperationException("CreatePipe stdout failed: " + Marshal.GetLastWin32Error());
+            if (!NativeMethods.CreatePipe(out var parentStdErrRead, out var childStdErrWrite, saPtr, 0))
+                throw new InvalidOperationException("CreatePipe stderr failed: " + Marshal.GetLastWin32Error());
+
+            const uint HANDLE_FLAG_INHERIT = 0x00000001;
+            NativeMethods.SetHandleInformation(parentStdOutRead, HANDLE_FLAG_INHERIT, 0);
+            NativeMethods.SetHandleInformation(parentStdErrRead, HANDLE_FLAG_INHERIT, 0);
+
+            var si = new NativeMethods.STARTUPINFO();
+            si.cb = (uint)Marshal.SizeOf<NativeMethods.STARTUPINFO>();
+            si.dwFlags = NativeMethods.STARTF_USESTDHANDLES;
+            si.hStdOutput = childStdOutWrite;
+            si.hStdError = childStdErrWrite;
+            si.hStdInput = IntPtr.Zero;
+
+            var pi = new NativeMethods.PROCESS_INFORMATION();
+            var cmdLine = new System.Text.StringBuilder("cmd.exe /c npm run build");
+
+            var created = NativeMethods.CreateProcess(null, cmdLine, IntPtr.Zero, IntPtr.Zero, true,
+                NativeMethods.CREATE_NO_WINDOW, IntPtr.Zero, _working_directory, ref si, out pi);
+
+            NativeMethods.CloseHandle(childStdOutWrite);
+            NativeMethods.CloseHandle(childStdErrWrite);
+
+            if (!created)
+            {
+                NativeMethods.CloseHandle(parentStdOutRead);
+                NativeMethods.CloseHandle(parentStdErrRead);
+                throw new InvalidOperationException("CreateProcess failed: " + Marshal.GetLastWin32Error());
+            }
+
+            // Close the thread handle from PROCESS_INFORMATION; keep the process handle
+            // so we can wait on it and retrieve the exit code via native APIs.
+            NativeMethods.CloseHandle(pi.hThread);
+
+            ReadPipeBlocking(parentStdOutRead, false, _loggerBuild);
+            ReadPipeBlocking(parentStdErrRead, true, _loggerBuild);
+
+            // Wait for the native process handle to signal and then read its exit code.
+            NativeMethods.WaitForSingleObject(pi.hProcess, NativeMethods.INFINITE);
+            if (!NativeMethods.GetExitCodeProcess(pi.hProcess, out uint exitCodeU))
+            {
+                _logger.LogWarning("Failed to get npm build exit code");
+            }
+            else
+            {
+                _logger.LogInformation("npm build completed with exit code {ExitCode}", exitCodeU);
+            }
+
+            // Close the native process handle now that we're done with it
+            NativeMethods.CloseHandle(pi.hProcess);
+        }
+        finally
+        {
+            Marshal.FreeHGlobal(saPtr);
+        }
+
+        void ReadPipeBlocking(IntPtr readHandle, bool isError, ILogger? logger)
+        {
+            try
+            {
+                using var safe = new SafeFileHandle(readHandle, ownsHandle: true);
+                using var fs = new FileStream(safe, FileAccess.Read, 4096, isAsync: false);
+                using var sr = new StreamReader(fs);
+                string? line;
+                while ((line = sr.ReadLine()) != null)
+                {
+                    if (logger != null)
+                    {
+                        var cleaned = _ansiRegex.Replace(line, string.Empty);
+                        if (isError)
+                            logger.LogError(cleaned);
+                        else
+                            logger.LogInformation(cleaned);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error reading build output");
+            }
+        }
+    }
+
     // Native interop tucked into a nested helper for readability
     private static class NativeMethods
     {
@@ -337,6 +442,14 @@ public class Vite : IDisposable
 
         [DllImport("kernel32.dll", SetLastError = true)]
         public static extern bool CloseHandle(IntPtr hObject);
+
+        public const uint INFINITE = 0xFFFFFFFF;
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        public static extern uint WaitForSingleObject(IntPtr hHandle, uint dwMilliseconds);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        public static extern bool GetExitCodeProcess(IntPtr hProcess, out uint lpExitCode);
 
         [StructLayout(LayoutKind.Sequential)]
         public struct JOBOBJECT_BASIC_LIMIT_INFORMATION

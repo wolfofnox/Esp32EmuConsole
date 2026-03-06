@@ -44,6 +44,7 @@ public class TUI
             var appLogBuffer = _services.GetRequiredKeyedService<LogBuffer>("AppLogBuffer");
             var httpLogBuffer = _services.GetRequiredKeyedService<LogBuffer>("HttpLogBuffer");
             var wsLogBuffer = _services.GetRequiredKeyedService<LogBuffer>("WsLogBuffer");
+            var vite = _services.GetRequiredService<Services.Vite>();
             
             var mainView = new MainView(
                 _config, 
@@ -51,7 +52,8 @@ public class TUI
                 _services.GetRequiredService<ILogger<MainView>>(),
                 appLogBuffer,
                 httpLogBuffer,
-                wsLogBuffer
+                wsLogBuffer,
+                vite
             );
             _app.Run(mainView);
         }
