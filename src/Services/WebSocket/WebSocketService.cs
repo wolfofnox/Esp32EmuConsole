@@ -21,7 +21,6 @@ public class WebSocketService
     private readonly ILogger<WebSocketService> _logger;
     private readonly ILoggerFactory _loggerFactory;
     private readonly IRules _rules;
-    private readonly Dictionary<string, CancellationTokenSource> _intervalTasks = new();
 
     public WebSocketService(ILogger<WebSocketService> logger, ILoggerFactory loggerFactory, IRules rules)
     {
