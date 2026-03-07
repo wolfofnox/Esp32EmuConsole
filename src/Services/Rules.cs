@@ -24,41 +24,6 @@ public class Rules : IRules
     private List<Rule> _ruleList = new();
     private Dictionary<string, HttpResponse?> _ruleMap = new(StringComparer.OrdinalIgnoreCase);
 
-    [Obsolete("Use GetRules() method instead for thread-safe access")]
-    public List<Rule> RuleList
-    {
-        get
-        {
-            _lock.EnterReadLock();
-            try
-            {
-                return new List<Rule>(_ruleList);
-            }
-            finally
-            {
-                _lock.ExitReadLock();
-            }
-        }
-    }
-
-    [Obsolete("Use TryGetResponse() method instead for thread-safe access")]
-    public Dictionary<string, HttpResponse?> RuleMap
-    {
-        get
-        {
-            _lock.EnterReadLock();
-            try
-            {
-                return new Dictionary<string, HttpResponse?>(_ruleMap, StringComparer.OrdinalIgnoreCase);
-            }
-            finally
-            {
-                _lock.ExitReadLock();
-            }
-        }
-    }
-
-
     public Rules(string workingDirectory, ILogger<Rules> logger)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
