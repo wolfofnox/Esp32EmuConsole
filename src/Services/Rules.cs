@@ -13,6 +13,7 @@ public class Rules : IRules
 {
     private readonly string _rulesPath;
     private readonly FileSystemWatcher? _watcher;
+    private readonly System.Timers.Timer? _reloadTimer;
     private readonly JsonSerializerOptions _jsonOptions = new()
     {
         PropertyNameCaseInsensitive = true,
@@ -42,18 +43,38 @@ public class Rules : IRules
 
         if (File.Exists(_rulesPath))
         {
-            _watcher = new FileSystemWatcher(workingDirectory, "rules.json") { NotifyFilter = NotifyFilters.LastWrite };
-            _watcher.Changed += (_, _) => 
-            { 
-                try 
-                { 
-                    ReloadRules(); 
-                } 
+            _watcher = new FileSystemWatcher(workingDirectory, "rules.json") { NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.FileName };
+
+            // Debounce rapid file system events; many editors save via temp+rename.
+            _reloadTimer = new System.Timers.Timer(200) { AutoReset = false };
+            _reloadTimer.Elapsed += (_, _) =>
+            {
+                try
+                {
+                    ReloadRules();
+                }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Failed to reload rules on file change");
+                    _logger.LogError(ex, "Failed to reload rules from timer");
                 }
             };
+
+            FileSystemEventHandler onChange = (_, _) =>
+            {
+                try
+                {
+                    _reloadTimer?.Stop();
+                    _reloadTimer?.Start();
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error scheduling rules reload");
+                }
+            };
+
+            _watcher.Changed += onChange;
+            _watcher.Created += onChange;
+            _watcher.Renamed += new RenamedEventHandler((s, e) => onChange(s, e));
             _watcher.EnableRaisingEvents = true;
         }
     }
@@ -66,8 +87,38 @@ public class Rules : IRules
             _ruleMap = new Dictionary<string, HttpResponse?>(StringComparer.OrdinalIgnoreCase);
             return;
         }
+        // Read the file with retries because editors often lock the file while saving.
+        string jsonText = string.Empty;
+        const int maxAttempts = 6;
+        for (int attempt = 1; attempt <= maxAttempts; attempt++)
+        {
+            try
+            {
+                using var fs = new FileStream(_rulesPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                using var sr = new StreamReader(fs);
+                jsonText = sr.ReadToEnd();
+                break;
+            }
+            catch (IOException) when (attempt < maxAttempts)
+            {
+                Thread.Sleep(100 * attempt);
+            }
+            catch (UnauthorizedAccessException) when (attempt < maxAttempts)
+            {
+                Thread.Sleep(100 * attempt);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Unexpected error reading rules file");
+                jsonText = string.Empty;
+                break;
+            }
+        }
 
-        var jsonText = File.ReadAllText(_rulesPath);
+        if (string.IsNullOrEmpty(jsonText))
+        {
+            _logger.LogWarning("rules.json is empty or could not be read: {RulesPath}", _rulesPath);
+        }
         List<Rule> rules;
         try
         {
@@ -157,6 +208,7 @@ public class Rules : IRules
     public void Dispose()
     {
         _watcher?.Dispose();
+        _reloadTimer?.Dispose();
         _lock.Dispose();
     }
 }
