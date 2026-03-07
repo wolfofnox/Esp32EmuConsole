@@ -134,7 +134,7 @@ public class Rules : IRules
         foreach (var r in rules)
         {
             // Process HTTP rules - either has Response.Http or has no response at all
-            if (r.Response?.Ws == null)
+            if ((r.Response?.Ws == null && r.Response?.Http == null) || r.Response?.Http != null)
             {
                 var path = r.Uri?.Trim();
                 if (string.IsNullOrWhiteSpace(path)) continue;
@@ -175,7 +175,7 @@ public class Rules : IRules
         }
     }
 
-    public bool TryGetResponse(string method, string path, out HttpResponse? response)
+    public bool GetHttpResponse(string method, string path, out HttpResponse? response)
     {
         _lock.EnterReadLock();
         try
@@ -202,6 +202,12 @@ public class Rules : IRules
             _lock.ExitWriteLock();
         }
     }
+
+    public bool GetWebSocketResponse(string path, string incomingMessage, out WebSocketResponse? response)
+    { response = new WebSocketResponse(); return false; }
+
+    public bool GetWebSocketIntervalResponse(string path, out WebSocketResponse? response)
+    { response = new WebSocketResponse(); return false; }
 
     private static string MakeKey(string method, string path) => $"{method.Trim().ToUpperInvariant()} {(path.Trim().StartsWith("/") ? path.Trim() : "/" + path.Trim())}";
 
