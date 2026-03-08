@@ -55,8 +55,20 @@ public class WebSocketService
             wsLogger.LogInformation("[SENT] {Message}", hello);
 
             // Start interval task if configured
-            var intervalCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            _ = StartIntervalMessagesAsync(webSocket, path, wsLogger, intervalCts.Token);
+            var intervalCts = new List<CancellationTokenSource>();
+
+            if (_rules.GetWebSocketIntervalResponse(path, out var intervalResponses) && intervalResponses != null)
+            {
+                foreach (var resp in intervalResponses)
+                {
+                    if (resp.IntervalMs.HasValue)
+                    {
+                        var cts = new CancellationTokenSource();
+                        intervalCts.Add(cts);
+                        _ = StartIntervalMessageAsync(webSocket, resp, wsLogger, cts.Token);
+                    }
+                }
+            }
 
             var buffer = new byte[MaxMessageBufferSize];
             while (webSocket.State == WebSocketState.Open && !cancellationToken.IsCancellationRequested)
@@ -101,7 +113,10 @@ public class WebSocketService
                 }
             }
 
-            intervalCts.Cancel();
+            foreach (var cts in intervalCts)
+            {
+                cts.Cancel();
+            }
 
             if (webSocket.State == WebSocketState.Open)
             {
@@ -128,27 +143,15 @@ public class WebSocketService
         }
     }
 
-    private async Task StartIntervalMessagesAsync(WS webSocket, string path, ILogger wsLogger, CancellationToken cancellationToken)
+    private async Task StartIntervalMessageAsync(WS webSocket, WebSocketResponse wsResponse, ILogger wsLogger, CancellationToken cancellationToken)
     {
-        var rules = _rules.GetRules();
-        var wsRule = rules.FirstOrDefault(r => 
-            r.Uri?.Equals(path, StringComparison.OrdinalIgnoreCase) == true &&
-            r.Response?.Ws?.Behavior?.Equals("interval", StringComparison.OrdinalIgnoreCase) == true &&
-            r.Response?.Ws?.IntervalMs.HasValue == true);
-
-        if (wsRule?.Response?.Ws == null || !wsRule.Response.Ws.IntervalMs.HasValue)
-        {
-            return;
-        }
-
-        var wsResponse = wsRule.Response.Ws;
         var responseData = wsResponse.Text ?? wsResponse.Binary;
 
         try
         {
             while (!cancellationToken.IsCancellationRequested && webSocket.State == WebSocketState.Open)
             {
-                await Task.Delay(wsResponse.IntervalMs.Value, cancellationToken);
+                await Task.Delay(wsResponse.IntervalMs ?? 0, cancellationToken);
                 
                 if (webSocket.State == WebSocketState.Open && !string.IsNullOrEmpty(responseData))
                 {
@@ -183,27 +186,21 @@ public class WebSocketService
 
     private (byte[]? response, WebSocketMessageType messageType) GetResponseForPath(string path, byte[] buffer, int count, WebSocketMessageType receivedType)
     {
-        var rules = _rules.GetRules();
-        var wsRule = rules.FirstOrDefault(r => 
-            r.Uri?.Equals(path, StringComparison.OrdinalIgnoreCase) == true &&
-            r.Response?.Ws != null);
-
-        if (wsRule?.Response?.Ws == null)
+        if (_rules.GetWebSocketResponse(path, Encoding.UTF8.GetString(buffer, 0, count), out var responses) && responses != null)
         {
-            return (null, WebSocketMessageType.Text);
+            foreach (var resp in responses)
+            {
+                return resp.Behavior switch
+                {
+                    "echo" => (buffer[..count], receivedType),
+                    "static" when !string.IsNullOrEmpty(resp.Binary) => 
+                        (Convert.FromHexString(resp.Binary), WebSocketMessageType.Binary),
+                    "static" when !string.IsNullOrEmpty(resp.Text) => 
+                        (Encoding.UTF8.GetBytes(resp.Text), WebSocketMessageType.Text),
+                    _ => (null, WebSocketMessageType.Text)
+                };
+            }
         }
-
-        var wsResponse = wsRule.Response.Ws;
-        var behavior = wsResponse.Behavior?.ToLowerInvariant();
-        
-        return behavior switch
-        {
-            "echo" => (buffer[..count], receivedType),
-            "static" when !string.IsNullOrEmpty(wsResponse.Binary) => 
-                (Convert.FromHexString(wsResponse.Binary), WebSocketMessageType.Binary),
-            "static" when !string.IsNullOrEmpty(wsResponse.Text) => 
-                (Encoding.UTF8.GetBytes(wsResponse.Text), WebSocketMessageType.Text),
-            _ => (null, WebSocketMessageType.Text)
-        };
+        return (null, WebSocketMessageType.Text);
     }
 }
