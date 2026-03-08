@@ -65,13 +65,31 @@
 
     // ── WebSocket examples ───────────────────────────────────────────────────────
 
-    // Echo behavior — every message received is sent back unchanged.
+
+    // Regex match example - matches any message containing specific text and responds with a static text message.  
     {
         "uri": "/ws",
         "response": {
-            "ws": {
+            "ws": [{
+                "behavior": "static",
+                "text": "This response matches any message containing 'hello' (case-sensitive).",
+                "match": "hello"
+            },
+            {
+                "behavior": "static",
+                "text": "This response matches any message containing 'data' (case-insensitive).",
+                "match": "data?i"}
+            ]
+        }
+    },
+    
+    // Echo behavior — every message received is sent back unchanged.
+    {
+        "uri": "/ws/echo",
+        "response": {
+            "ws": [{
                 "behavior": "echo"
-            }
+            }]
         }
     },
 
@@ -79,10 +97,10 @@
     {
         "uri": "/ws/sensor",
         "response": {
-            "ws": {
+            "ws": [{
                 "behavior": "static",
                 "text": "{\"temp\":25.5,\"humidity\":60}"
-            }
+            }]
         }
     },
 
@@ -90,11 +108,11 @@
     {
         "uri": "/ws/interval",
         "response": {
-            "ws": {
+            "ws": [{
                 "behavior": "interval",
                 "intervalMs": 1000,
                 "text": "{\"timestamp\":\"periodic_update\"}"
-            }
+            }]
         }
     },
 
@@ -102,10 +120,10 @@
     {
         "uri": "/ws/binary",
         "response": {
-            "ws": {
+            "ws": [{
                 "behavior": "static",
                 "binary": "48656C6C6F20576F726C64"
-            }
+            }]
         }
     }
 ]

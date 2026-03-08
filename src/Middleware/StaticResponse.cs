@@ -23,7 +23,7 @@ public class StaticResponse
 
     public async Task InvokeAsync(HttpContext ctx)
     {
-        if (_ruleService.TryGetResponse(ctx.Request.Method, ctx.Request.Path.ToString(), out var resp))
+        if (_ruleService.TryGetHttpResponse(ctx.Request.Method, ctx.Request.Path.ToString(), out var resp))
         {
             if (resp == null)
             {

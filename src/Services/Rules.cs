@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.RegularExpressions;
 
 namespace Esp32EmuConsole.Services;
 
@@ -11,8 +12,15 @@ namespace Esp32EmuConsole.Services;
 /// </summary>
 public class Rules : IRules
 {
+    /// <summary>Maximum time allowed per regex match to guard against catastrophic backtracking.</summary>
+    private static readonly TimeSpan RegexMatchTimeout = TimeSpan.FromSeconds(1);
+
+    /// <summary>Pairs a <see cref="WebSocketResponse"/> with its pre-compiled <see cref="Regex"/> (null when no pattern is set).</summary>
+    private sealed record CompiledWebSocketResponse(WebSocketResponse Response, Regex? CompiledMatch);
+
     private readonly string _rulesPath;
     private readonly FileSystemWatcher? _watcher;
+    private readonly System.Timers.Timer? _reloadTimer;
     private readonly JsonSerializerOptions _jsonOptions = new()
     {
         PropertyNameCaseInsensitive = true,
@@ -22,43 +30,9 @@ public class Rules : IRules
     private readonly ILogger<Rules> _logger;
     private readonly ReaderWriterLockSlim _lock = new();
     private List<Rule> _ruleList = new();
-    private Dictionary<string, HttpResponse?> _ruleMap = new(StringComparer.OrdinalIgnoreCase);
-
-    [Obsolete("Use GetRules() method instead for thread-safe access")]
-    public List<Rule> RuleList
-    {
-        get
-        {
-            _lock.EnterReadLock();
-            try
-            {
-                return new List<Rule>(_ruleList);
-            }
-            finally
-            {
-                _lock.ExitReadLock();
-            }
-        }
-    }
-
-    [Obsolete("Use TryGetResponse() method instead for thread-safe access")]
-    public Dictionary<string, HttpResponse?> RuleMap
-    {
-        get
-        {
-            _lock.EnterReadLock();
-            try
-            {
-                return new Dictionary<string, HttpResponse?>(_ruleMap, StringComparer.OrdinalIgnoreCase);
-            }
-            finally
-            {
-                _lock.ExitReadLock();
-            }
-        }
-    }
-
-
+    private Dictionary<string, HttpResponse> _httpRuleMap = new(StringComparer.OrdinalIgnoreCase);
+    private Dictionary<string, List<CompiledWebSocketResponse>> _wsRuleMap = new(StringComparer.OrdinalIgnoreCase);
+    private Dictionary<string, List<WebSocketResponse>> _wsIntervalRuleMap = new(StringComparer.OrdinalIgnoreCase);
     public Rules(string workingDirectory, ILogger<Rules> logger)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -77,18 +51,38 @@ public class Rules : IRules
 
         if (File.Exists(_rulesPath))
         {
-            _watcher = new FileSystemWatcher(workingDirectory, "rules.json") { NotifyFilter = NotifyFilters.LastWrite };
-            _watcher.Changed += (_, _) => 
-            { 
-                try 
-                { 
-                    ReloadRules(); 
-                } 
+            _watcher = new FileSystemWatcher(workingDirectory, "rules.json") { NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.FileName };
+
+            // Debounce rapid file system events; many editors save via temp+rename.
+            _reloadTimer = new System.Timers.Timer(200) { AutoReset = false };
+            _reloadTimer.Elapsed += (_, _) =>
+            {
+                try
+                {
+                    ReloadRules();
+                }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Failed to reload rules on file change");
+                    _logger.LogError(ex, "Failed to reload rules from timer");
                 }
             };
+
+            FileSystemEventHandler onChange = (_, _) =>
+            {
+                try
+                {
+                    _reloadTimer?.Stop();
+                    _reloadTimer?.Start();
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error scheduling rules reload");
+                }
+            };
+
+            _watcher.Changed += onChange;
+            _watcher.Created += onChange;
+            _watcher.Renamed += new RenamedEventHandler((s, e) => onChange(s, e));
             _watcher.EnableRaisingEvents = true;
         }
     }
@@ -98,11 +92,44 @@ public class Rules : IRules
         if (!File.Exists(_rulesPath))
         {
             _ruleList = new List<Rule>();
-            _ruleMap = new Dictionary<string, HttpResponse?>(StringComparer.OrdinalIgnoreCase);
+            _httpRuleMap = new Dictionary<string, HttpResponse>(StringComparer.OrdinalIgnoreCase);
+            _wsRuleMap = new Dictionary<string, List<CompiledWebSocketResponse>>(StringComparer.OrdinalIgnoreCase);
+            _wsIntervalRuleMap = new Dictionary<string, List<WebSocketResponse>>(StringComparer.OrdinalIgnoreCase);
+            _logger.LogWarning("rules.json not found at {RulesPath}. Starting with empty rule set.", _rulesPath);
             return;
         }
+        // Read the file with retries because editors often lock the file while saving.
+        string jsonText = string.Empty;
+        const int maxAttempts = 6;
+        for (int attempt = 1; attempt <= maxAttempts; attempt++)
+        {
+            try
+            {
+                using var fs = new FileStream(_rulesPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                using var sr = new StreamReader(fs);
+                jsonText = sr.ReadToEnd();
+                break;
+            }
+            catch (IOException) when (attempt < maxAttempts)
+            {
+                Thread.Sleep(100 * attempt);
+            }
+            catch (UnauthorizedAccessException) when (attempt < maxAttempts)
+            {
+                Thread.Sleep(100 * attempt);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Unexpected error reading rules file");
+                jsonText = string.Empty;
+                break;
+            }
+        }
 
-        var jsonText = File.ReadAllText(_rulesPath);
+        if (string.IsNullOrEmpty(jsonText))
+        {
+            _logger.LogWarning("rules.json is empty or could not be read: {RulesPath}", _rulesPath);
+        }
         List<Rule> rules;
         try
         {
@@ -114,11 +141,13 @@ public class Rules : IRules
             rules = new List<Rule>();
         }
 
-        var httpRuleMap = new Dictionary<string, HttpResponse?>(StringComparer.OrdinalIgnoreCase);
+        var httpRuleMap = new Dictionary<string, HttpResponse>(StringComparer.OrdinalIgnoreCase);
+        var wsRuleMap = new Dictionary<string, List<CompiledWebSocketResponse>>(StringComparer.OrdinalIgnoreCase);
+        var wsIntervalRuleMap = new Dictionary<string, List<WebSocketResponse>>(StringComparer.OrdinalIgnoreCase);
         foreach (var r in rules)
         {
             // Process HTTP rules - either has Response.Http or has no response at all
-            if (r.Response?.Ws == null)
+            if ((r.Response?.Ws == null && r.Response?.Http == null) || r.Response?.Http != null)
             {
                 var path = r.Uri?.Trim();
                 if (string.IsNullOrWhiteSpace(path)) continue;
@@ -140,10 +169,57 @@ public class Rules : IRules
                     httpRuleMap[key] = r.Response.Http;
                 }
             }
+            if (r.Response?.Ws != null)
+            {
+                var path = r.Uri?.Trim();
+                if (string.IsNullOrWhiteSpace(path)) continue;
+
+                var key = path.StartsWith("/") ? path : "/" + path;
+
+                foreach (var wsResp in r.Response.Ws)
+                {
+                    if (string.IsNullOrWhiteSpace(wsResp.Behavior)) continue;
+                    if (string.Equals(wsResp.Behavior, "interval", StringComparison.OrdinalIgnoreCase) && !wsResp.IntervalMs.HasValue)
+                    {
+                        _logger.LogWarning("WebSocket rule for path {Path} has 'interval' behavior but no IntervalMs defined. Skipping.", key);
+                        continue;
+                    }
+                    if (string.Equals(wsResp.Behavior, "interval", StringComparison.OrdinalIgnoreCase))
+                    {
+                        if (!string.IsNullOrEmpty(wsResp.Match)) _logger.LogWarning("WebSocket rule for path {Path} has 'interval' behavior but also defines a Match pattern. Match will be ignored.", key);
+                        if (!wsIntervalRuleMap.ContainsKey(key))
+                        {
+                            wsIntervalRuleMap[key] = new List<WebSocketResponse>();
+                        }
+                        wsIntervalRuleMap[key].Add(wsResp);
+                        continue;
+                    }
+                    Regex? compiledMatch = null;
+                    if (!string.IsNullOrEmpty(wsResp.Match))
+                    {
+                        try
+                        {
+                            compiledMatch = new Regex(wsResp.Match, RegexOptions.Compiled, RegexMatchTimeout);
+                        }
+                        catch (ArgumentException ex)
+                        {
+                            _logger.LogWarning(ex, "WebSocket rule for path {Path} has invalid Match pattern. Skipping.", key);
+                            continue;
+                        }
+                    }
+                    if (!wsRuleMap.ContainsKey(key))
+                    {
+                        wsRuleMap[key] = new List<CompiledWebSocketResponse>();
+                    }
+                    wsRuleMap[key].Add(new CompiledWebSocketResponse(wsResp, compiledMatch));
+                }
+            }
         }
 
         _ruleList = rules;
-        _ruleMap = httpRuleMap;
+        _httpRuleMap = httpRuleMap;
+        _wsRuleMap = wsRuleMap;
+        _wsIntervalRuleMap = wsIntervalRuleMap;
     }
 
     public IReadOnlyList<Rule> GetRules()
@@ -159,13 +235,13 @@ public class Rules : IRules
         }
     }
 
-    public bool TryGetResponse(string method, string path, out HttpResponse? response)
+    public bool TryGetHttpResponse(string method, string path, out HttpResponse? response)
     {
         _lock.EnterReadLock();
         try
         {
             var key = MakeKey(method, path);
-            return _ruleMap.TryGetValue(key, out response);
+            return _httpRuleMap.TryGetValue(key, out response);
         }
         finally
         {
@@ -187,11 +263,74 @@ public class Rules : IRules
         }
     }
 
+    public bool TryGetWebSocketResponse(string path, string incomingMessage, out List<WebSocketResponse>? responses)
+    {
+        _lock.EnterReadLock();
+        try
+        {
+            if (_wsRuleMap.TryGetValue(path, out var wsResponses))
+            {
+                responses = new();
+                foreach (var compiled in wsResponses)
+                {
+                    if (compiled.CompiledMatch is null)
+                    {
+                        responses.Add(compiled.Response);
+                    }
+                    else
+                    {
+                        try
+                        {
+                            if (compiled.CompiledMatch.IsMatch(incomingMessage))
+                                responses.Add(compiled.Response);
+                        }
+                        catch (RegexMatchTimeoutException ex)
+                        {
+                            _logger.LogWarning(ex, "Regex match timed out for pattern {Pattern} on path {Path}. Skipping rule.", compiled.Response.Match, path);
+                        }
+                    }
+                }
+
+                if (responses != null && responses.Count > 0)  
+                {  
+                    return true;  
+                } 
+            }
+
+            responses = null;
+            return false;
+        }
+        finally
+        {
+            _lock.ExitReadLock();
+        }
+    }
+
+    public bool TryGetWebSocketIntervalResponse(string path, out List<WebSocketResponse>? responses)
+    {
+        _lock.EnterReadLock();
+        try
+        {
+            if (_wsIntervalRuleMap.TryGetValue(path, out var wsResponses))
+            {
+                responses = new List<WebSocketResponse>(wsResponses);
+                return true;
+            }
+            responses = null;
+            return false;
+        }
+        finally
+        {
+            _lock.ExitReadLock();
+        }
+    }
+
     private static string MakeKey(string method, string path) => $"{method.Trim().ToUpperInvariant()} {(path.Trim().StartsWith("/") ? path.Trim() : "/" + path.Trim())}";
 
     public void Dispose()
     {
         _watcher?.Dispose();
+        _reloadTimer?.Dispose();
         _lock.Dispose();
     }
 }

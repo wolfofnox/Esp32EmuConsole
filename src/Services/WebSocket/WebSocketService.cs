@@ -21,7 +21,6 @@ public class WebSocketService
     private readonly ILogger<WebSocketService> _logger;
     private readonly ILoggerFactory _loggerFactory;
     private readonly IRules _rules;
-    private readonly Dictionary<string, CancellationTokenSource> _intervalTasks = new();
 
     public WebSocketService(ILogger<WebSocketService> logger, ILoggerFactory loggerFactory, IRules rules)
     {
@@ -56,8 +55,20 @@ public class WebSocketService
             wsLogger.LogInformation("[SENT] {Message}", hello);
 
             // Start interval task if configured
-            var intervalCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            _ = StartIntervalMessagesAsync(webSocket, path, wsLogger, intervalCts.Token);
+            var intervalCts = new List<CancellationTokenSource>();
+
+            if (_rules.TryGetWebSocketIntervalResponse(path, out var intervalResponses) && intervalResponses != null)
+            {
+                foreach (var resp in intervalResponses)
+                {
+                    if (resp.IntervalMs.HasValue)
+                    {
+                        var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                        intervalCts.Add(cts);
+                        _ = StartIntervalMessageAsync(webSocket, resp, wsLogger, cts.Token);
+                    }
+                }
+            }
 
             var buffer = new byte[MaxMessageBufferSize];
             while (webSocket.State == WebSocketState.Open && !cancellationToken.IsCancellationRequested)
@@ -83,26 +94,38 @@ public class WebSocketService
                     wsLogger.LogInformation("[RECV] {Message}", message);
                 }
 
-                var (responseMessage, messageType) = GetResponseForPath(path, buffer, result.Count, result.MessageType);
-                if (responseMessage != null)
+                if (_rules.TryGetWebSocketResponse(path, Encoding.UTF8.GetString(buffer, 0, result.Count), out var responses) && responses != null)
                 {
-                    await webSocket.SendAsync(responseMessage, messageType, true, cancellationToken);
-                    
-                    // Log sent message
-                    if (messageType == WebSocketMessageType.Binary)
-                    {
-                        var hexMessage = Convert.ToHexString(responseMessage);
-                        wsLogger.LogInformation("[SENT BINARY HEX] {Message}", hexMessage);
-                    }
-                    else
-                    {
-                        var sentMessage = Encoding.UTF8.GetString(responseMessage);
-                        wsLogger.LogInformation("[SENT] {Message}", sentMessage);
+                    foreach (var resp in responses)
+                    {   
+                        switch (resp.Behavior?.ToLowerInvariant())
+                        {
+                            case "echo":
+                                await webSocket.SendAsync(buffer[..result.Count], result.MessageType, true, cancellationToken);
+                                wsLogger.LogInformation("[ECHOED] {Message}", result.MessageType == WebSocketMessageType.Binary
+                                    ? Convert.ToHexString(buffer, 0, result.Count)
+                                    : Encoding.UTF8.GetString(buffer, 0, result.Count));
+                                break;
+                            case "static" when !string.IsNullOrEmpty(resp.Binary):
+                                await webSocket.SendAsync(Convert.FromHexString(resp.Binary), WebSocketMessageType.Binary, true, cancellationToken);
+                                wsLogger.LogInformation("[SENT BINARY HEX] {Message}", resp.Binary);
+                                break;
+                            case "static" when !string.IsNullOrEmpty(resp.Text):
+                                await webSocket.SendAsync(Encoding.UTF8.GetBytes(resp.Text), WebSocketMessageType.Text, true, cancellationToken);
+                                wsLogger.LogInformation("[SENT] {Message}", resp.Text);
+                                break;
+                            default:
+                                _logger.LogWarning("Unsupported WebSocket behavior: {Behavior} for path: {Path}", resp.Behavior, path);
+                                break;
+                        };
                     }
                 }
             }
 
-            intervalCts.Cancel();
+            foreach (var cts in intervalCts)
+            {
+                cts.Cancel();
+            }
 
             if (webSocket.State == WebSocketState.Open)
             {
@@ -129,21 +152,15 @@ public class WebSocketService
         }
     }
 
-    private async Task StartIntervalMessagesAsync(WS webSocket, string path, ILogger wsLogger, CancellationToken cancellationToken)
+    private async Task StartIntervalMessageAsync(WS webSocket, WebSocketResponse wsResponse, ILogger wsLogger, CancellationToken cancellationToken)
     {
-        var rules = _rules.GetRules();
-        var wsRule = rules.FirstOrDefault(r => 
-            r.Uri?.Equals(path, StringComparison.OrdinalIgnoreCase) == true &&
-            r.Response?.Ws?.Behavior?.Equals("interval", StringComparison.OrdinalIgnoreCase) == true &&
-            r.Response?.Ws?.IntervalMs.HasValue == true);
-
-        if (wsRule?.Response?.Ws == null || !wsRule.Response.Ws.IntervalMs.HasValue)
-        {
-            return;
-        }
-
-        var wsResponse = wsRule.Response.Ws;
         var responseData = wsResponse.Text ?? wsResponse.Binary;
+
+        if (!wsResponse.IntervalMs.HasValue || wsResponse.IntervalMs.Value <= 0)  
+        {  
+            wsLogger.LogWarning("Interval response IntervalMs must be greater than 0. Skipping interval message.");  
+            return;  
+        } 
 
         try
         {
@@ -180,31 +197,5 @@ public class WebSocketService
         {
             // Expected when connection closes
         }
-    }
-
-    private (byte[]? response, WebSocketMessageType messageType) GetResponseForPath(string path, byte[] buffer, int count, WebSocketMessageType receivedType)
-    {
-        var rules = _rules.GetRules();
-        var wsRule = rules.FirstOrDefault(r => 
-            r.Uri?.Equals(path, StringComparison.OrdinalIgnoreCase) == true &&
-            r.Response?.Ws != null);
-
-        if (wsRule?.Response?.Ws == null)
-        {
-            return (null, WebSocketMessageType.Text);
-        }
-
-        var wsResponse = wsRule.Response.Ws;
-        var behavior = wsResponse.Behavior?.ToLowerInvariant();
-        
-        return behavior switch
-        {
-            "echo" => (buffer[..count], receivedType),
-            "static" when !string.IsNullOrEmpty(wsResponse.Binary) => 
-                (Convert.FromHexString(wsResponse.Binary), WebSocketMessageType.Binary),
-            "static" when !string.IsNullOrEmpty(wsResponse.Text) => 
-                (Encoding.UTF8.GetBytes(wsResponse.Text), WebSocketMessageType.Text),
-            _ => (null, WebSocketMessageType.Text)
-        };
     }
 }

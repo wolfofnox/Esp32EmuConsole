@@ -136,9 +136,9 @@ public class WebSocketServiceTest : IDisposable
             {
                 ""uri"": ""/ws"",
                 ""response"": {
-                    ""ws"": {
-                        ""behavior"": ""echo""
-                    }
+                    ""ws"": [
+                        { ""behavior"": ""echo"" }
+                    ]
                 }
             }
         ]";
@@ -176,10 +176,9 @@ public class WebSocketServiceTest : IDisposable
             {
                 ""uri"": ""/ws/sensor"",
                 ""response"": {
-                    ""ws"": {
-                        ""behavior"": ""static"",
-                        ""text"": ""{\u0022temp\u0022:25.5}""
-                    }
+                    ""ws"": [
+                        { ""behavior"": ""static"", ""text"": ""{\u0022temp\u0022:25.5}"" }
+                    ]
                 }
             }
         ]";
@@ -248,11 +247,9 @@ public class WebSocketServiceTest : IDisposable
             {
                 ""uri"": ""/ws/interval"",
                 ""response"": {
-                    ""ws"": {
-                        ""behavior"": ""interval"",
-                        ""intervalMs"": 50,
-                        ""text"": ""periodic message""
-                    }
+                    ""ws"": [
+                        { ""behavior"": ""interval"", ""intervalMs"": 50, ""text"": ""periodic message"" }
+                    ]
                 }
             }
         ]";
@@ -290,10 +287,9 @@ public class WebSocketServiceTest : IDisposable
             {
                 ""uri"": ""/ws/binary"",
                 ""response"": {
-                    ""ws"": {
-                        ""behavior"": ""static"",
-                        ""binary"": ""48656C6C6F""
-                    }
+                    ""ws"": [
+                        { ""behavior"": ""static"", ""binary"": ""48656C6C6F"" }
+                    ]
                 }
             }
         ]";
@@ -324,6 +320,128 @@ public class WebSocketServiceTest : IDisposable
         Assert.Equal("Hello", binaryResponse);
     }
 
+    [Fact]
+    public async Task HandleConnectionAsync_MatchPattern_OnlyRespondsToMatchingMessages()
+    {
+        // Arrange – rule only applies to messages matching "^ping$"
+        var rulesJson = @"[
+            {
+                ""uri"": ""/ws"",
+                ""response"": {
+                    ""ws"": [
+                        { ""behavior"": ""static"", ""text"": ""pong"", ""match"": ""^ping$"" }
+                    ]
+                }
+            }
+        ]";
+        var tempDir = CreateTempDirectoryWithRulesFile(rulesJson);
+        using var rules = new Services.Rules(tempDir, _loggerFactory.CreateLogger<Services.Rules>());
+        var wsService = new Services.WebSocket.WebSocketService(_loggerFactory.CreateLogger<Services.WebSocket.WebSocketService>(), _loggerFactory, rules);
+
+        var mockWebSocket = new MockWebSocket();
+        // First message does NOT match; second message DOES match
+        mockWebSocket.ReceivedMessages.Add("hello");
+        mockWebSocket.ReceivedMessages.Add("ping");
+
+        // Act
+        var cts = new CancellationTokenSource();
+        cts.CancelAfter(TestTimeoutMs);
+
+        try
+        {
+            await wsService.HandleConnectionAsync(mockWebSocket, "/ws", cts.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            // Expected
+        }
+
+        // Assert – hello message + "pong" reply to "ping" (non-matching "hello" yields no reply)
+        Assert.Equal(2, mockWebSocket.SentMessages.Count);
+        Assert.Contains("hello", mockWebSocket.SentMessages[0], StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(mockWebSocket.SentMessages, msg => msg == "pong");
+    }
+
+    [Fact]
+    public async Task HandleConnectionAsync_MultipleIntervalBehaviors_SendsAllPeriodicMessages()
+    {
+        // Arrange – two interval rules on the same path
+        var rulesJson = @"[
+            {
+                ""uri"": ""/ws/multi"",
+                ""response"": {
+                    ""ws"": [
+                        { ""behavior"": ""interval"", ""intervalMs"": 40, ""text"": ""tick-A"" },
+                        { ""behavior"": ""interval"", ""intervalMs"": 60, ""text"": ""tick-B"" }
+                    ]
+                }
+            }
+        ]";
+        var tempDir = CreateTempDirectoryWithRulesFile(rulesJson);
+        using var rules = new Services.Rules(tempDir, _loggerFactory.CreateLogger<Services.Rules>());
+        var wsService = new Services.WebSocket.WebSocketService(_loggerFactory.CreateLogger<Services.WebSocket.WebSocketService>(), _loggerFactory, rules);
+
+        var mockWebSocket = new MockWebSocket();
+
+        // Act – run for 200 ms; both interval tasks should fire at least once
+        var cts = new CancellationTokenSource();
+        cts.CancelAfter(200);
+
+        try
+        {
+            await wsService.HandleConnectionAsync(mockWebSocket, "/ws/multi", cts.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            // Expected
+        }
+
+        // Assert – hello + at least one tick-A and one tick-B
+        Assert.True(mockWebSocket.SentMessages.Count >= 3, $"Expected at least 3 messages, got {mockWebSocket.SentMessages.Count}");
+        Assert.Contains(mockWebSocket.SentMessages, msg => msg.Contains("tick-A"));
+        Assert.Contains(mockWebSocket.SentMessages, msg => msg.Contains("tick-B"));
+    }
+
+    [Fact]
+    public async Task HandleConnectionAsync_MultipleStaticBehaviors_SendsAllStaticMessages()
+    {
+        // Arrange – two non-interval (static) rules on the same path
+        var rulesJson = @"[
+            {
+                ""uri"": ""/ws/static-multi"",
+                ""response"": {
+                    ""ws"": [
+                        { ""behavior"": ""static"", ""text"": ""static-A"" },
+                        { ""behavior"": ""static"", ""text"": ""static-B"" }
+                    ]
+                }
+            }
+        ]";
+        var tempDir = CreateTempDirectoryWithRulesFile(rulesJson);
+        using var rules = new Services.Rules(tempDir, _loggerFactory.CreateLogger<Services.Rules>());
+        var wsService = new Services.WebSocket.WebSocketService(_loggerFactory.CreateLogger<Services.WebSocket.WebSocketService>(), _loggerFactory, rules);
+
+        var mockWebSocket = new MockWebSocket();
+        mockWebSocket.ReceivedMessages.Add("any_message");
+
+        // Act – run briefly; static behaviors should be sent without needing incoming messages
+        var cts = new CancellationTokenSource();
+        cts.CancelAfter(TestTimeoutMs);
+
+        try
+        {
+            await wsService.HandleConnectionAsync(mockWebSocket, "/ws/static-multi", cts.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            // Expected
+        }
+
+        // Assert – both static-A and static-B were sent
+        Assert.True(mockWebSocket.SentMessages.Count >= 3, $"Expected at least 3 messages (hello + 2), got {mockWebSocket.SentMessages.Count}");
+        Assert.Contains(mockWebSocket.SentMessages, msg => msg.Contains("static-A"));
+        Assert.Contains(mockWebSocket.SentMessages, msg => msg.Contains("static-B"));
+    }
     // Mock WebSocket for testing
     private class MockWebSocket : WebSocket
     {

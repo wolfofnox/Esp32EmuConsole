@@ -88,7 +88,7 @@ public class RulesTest : IDisposable
 
         // Assert
         Assert.Empty(rulesService.GetRules());
-        var hasResponse = rulesService.TryGetResponse("GET", "/any", out _);
+        var hasResponse = rulesService.TryGetHttpResponse("GET", "/any", out _);
         Assert.False(hasResponse);
 
     }
@@ -142,11 +142,11 @@ public class RulesTest : IDisposable
         using var rulesService = new Services.Rules(tempDir, _loggerFactory.CreateLogger<Services.Rules>());
 
         // Assert
-        var hasGetResponse = rulesService.TryGetResponse("GET", "/api/users", out var getResp);
+        var hasGetResponse = rulesService.TryGetHttpResponse("GET", "/api/users", out var getResp);
         Assert.True(hasGetResponse);
         Assert.Equal(200, getResp?.StatusCode);
         
-        var hasPostResponse = rulesService.TryGetResponse("POST", "/api/users", out var postResp);
+        var hasPostResponse = rulesService.TryGetHttpResponse("POST", "/api/users", out var postResp);
         Assert.True(hasPostResponse);
         Assert.Equal(201, postResp?.StatusCode);
 
@@ -172,9 +172,9 @@ public class RulesTest : IDisposable
         using var rulesService = new Services.Rules(tempDir, _loggerFactory.CreateLogger<Services.Rules>());
 
         // Assert
-        Assert.True(rulesService.TryGetResponse("GET", "/test", out _));
-        Assert.True(rulesService.TryGetResponse("get", "/test", out _));
-        Assert.True(rulesService.TryGetResponse("Get", "/test", out _));
+        Assert.True(rulesService.TryGetHttpResponse("GET", "/test", out _));
+        Assert.True(rulesService.TryGetHttpResponse("get", "/test", out _));
+        Assert.True(rulesService.TryGetHttpResponse("Get", "/test", out _));
 
     }
 
@@ -198,7 +198,7 @@ public class RulesTest : IDisposable
         using var rulesService = new Services.Rules(tempDir, _loggerFactory.CreateLogger<Services.Rules>());
 
         // Assert
-        Assert.True(rulesService.TryGetResponse("GET", "/test", out _));
+        Assert.True(rulesService.TryGetHttpResponse("GET", "/test", out _));
 
     }
 
@@ -221,7 +221,7 @@ public class RulesTest : IDisposable
         // Assert
         var rules = rulesService.GetRules();
         Assert.Single(rules);
-        var hasResponse = rulesService.TryGetResponse("GET", "/test", out var response);
+        var hasResponse = rulesService.TryGetHttpResponse("GET", "/test", out var response);
         Assert.True(hasResponse);
         Assert.NotNull(response);
         Assert.Equal(501, response?.StatusCode);
@@ -258,8 +258,8 @@ public class RulesTest : IDisposable
         // Assert
         var rules = rulesService.GetRules();
         Assert.Equal(2, rules.Count);
-        Assert.True(rulesService.TryGetResponse("GET", "/valid", out _));
-        Assert.False(rulesService.TryGetResponse("GET", "", out _));
+        Assert.True(rulesService.TryGetHttpResponse("GET", "/valid", out _));
+        Assert.False(rulesService.TryGetHttpResponse("GET", "", out _));
 
     }
 
@@ -283,7 +283,7 @@ public class RulesTest : IDisposable
         using var rulesService = new Services.Rules(tempDir, _loggerFactory.CreateLogger<Services.Rules>());
 
         // Assert
-        Assert.True(rulesService.TryGetResponse("GET", "/test", out _));
+        Assert.True(rulesService.TryGetHttpResponse("GET", "/test", out _));
 
     }
 
@@ -361,7 +361,7 @@ public class RulesTest : IDisposable
         using var rulesService = new Services.Rules(tempDir, _loggerFactory.CreateLogger<Services.Rules>());
 
         // Assert
-        var hasResponse = rulesService.TryGetResponse("GET", "/test", out var response);
+        var hasResponse = rulesService.TryGetHttpResponse("GET", "/test", out var response);
         Assert.True(hasResponse, "Should find response for 'GET /test'");
         Assert.NotNull(response);
         Assert.Equal(200, response!.StatusCode);
@@ -413,8 +413,8 @@ public class RulesTest : IDisposable
                 {
                     while (!shouldStop)
                     {
-                        // Read using TryGetResponse and verify data integrity
-                        var found1 = rulesService.TryGetResponse("GET", "/test1", out var resp1);
+                        // Read using GetHttpResponse and verify data integrity
+                        var found1 = rulesService.TryGetHttpResponse("GET", "/test1", out var resp1);
                         if (found1)
                         {
                             if (resp1 == null || resp1.StatusCode != 200)
@@ -423,7 +423,7 @@ public class RulesTest : IDisposable
                             }
                         }
                         
-                        var found2 = rulesService.TryGetResponse("GET", "/test2", out var resp2);
+                        var found2 = rulesService.TryGetHttpResponse("GET", "/test2", out var resp2);
                         if (found2)
                         {
                             if (resp2 == null || resp2.StatusCode != 201)
@@ -511,7 +511,7 @@ public class RulesTest : IDisposable
         using var rulesService = new Services.Rules(tempDir, _loggerFactory.CreateLogger<Services.Rules>());
 
         // Verify original rule
-        var hasOriginal = rulesService.TryGetResponse("GET", "/test", out var originalResp);
+        var hasOriginal = rulesService.TryGetHttpResponse("GET", "/test", out var originalResp);
         Assert.True(hasOriginal);
         Assert.Equal("original", originalResp?.Body);
 
@@ -531,7 +531,7 @@ public class RulesTest : IDisposable
         rulesService.ReloadRules();
 
         // Assert - Rules should be updated
-        var hasUpdated = rulesService.TryGetResponse("GET", "/test", out var updatedResp);
+        var hasUpdated = rulesService.TryGetHttpResponse("GET", "/test", out var updatedResp);
         Assert.True(hasUpdated);
         Assert.Equal("updated", updatedResp?.Body);
     }
@@ -544,18 +544,17 @@ public class RulesTest : IDisposable
             {
                 ""Uri"": ""/ws"",
                 ""Response"": {
-                    ""Ws"": {
-                        ""Behavior"": ""echo""
-                    }
+                    ""Ws"": [
+                        { ""Behavior"": ""echo"" }
+                    ]
                 }
             },
             {
                 ""Uri"": ""/ws/sensor"",
                 ""Response"": {
-                    ""Ws"": {
-                        ""Behavior"": ""static"",
-                        ""Text"": ""{\u0022temp\u0022:25.5}""
-                    }
+                    ""Ws"": [
+                        { ""Behavior"": ""static"", ""Text"": ""{\u0022temp\u0022:25.5}"" }
+                    ]
                 }
             }
         ]";
@@ -571,13 +570,13 @@ public class RulesTest : IDisposable
         var echoRule = rules[0];
         Assert.Equal("websocket", echoRule.Response?.Ws != null ? "websocket" : "http");
         Assert.Equal("/ws", echoRule.Uri);
-        Assert.Equal("echo", echoRule.Response?.Ws?.Behavior);
+        Assert.Equal("echo", echoRule.Response?.Ws?[0].Behavior);
         
         var staticRule = rules[1];
         Assert.Equal("websocket", staticRule.Response?.Ws != null ? "websocket" : "http");
         Assert.Equal("/ws/sensor", staticRule.Uri);
-        Assert.Equal("static", staticRule.Response?.Ws?.Behavior);
-        Assert.Contains("temp", staticRule.Response?.Ws?.Text);
+        Assert.Equal("static", staticRule.Response?.Ws?[0].Behavior);
+        Assert.Contains("temp", staticRule.Response?.Ws?[0].Text);
     }
 
     [Fact]
@@ -597,9 +596,9 @@ public class RulesTest : IDisposable
             {
                 ""Uri"": ""/ws"",
                 ""Response"": {
-                    ""Ws"": {
-                        ""Behavior"": ""echo""
-                    }
+                    ""Ws"": [
+                        { ""Behavior"": ""echo"" }
+                    ]
                 }
             }
         ]";
@@ -622,5 +621,118 @@ public class RulesTest : IDisposable
         var wsRule = rules[1];
         Assert.Equal("websocket", wsRule.Response?.Ws != null ? "websocket" : "http");
         Assert.Equal("/ws", wsRule.Uri);
+    }
+
+    [Fact]
+    public void TryGetWebSocketResponse_WithMatchPattern_SelectsMatchingRule()
+    {
+        // Arrange – two rules on the same path, differentiated by Match
+        var rulesJson = @"[
+            {
+                ""Uri"": ""/ws"",
+                ""Response"": {
+                    ""Ws"": [
+                        { ""Behavior"": ""static"", ""Text"": ""pong"", ""Match"": ""^ping$"" },
+                        { ""Behavior"": ""static"", ""Text"": ""status ok"", ""Match"": ""status"" }
+                    ]
+                }
+            }
+        ]";
+        var tempDir = CreateTempDirectoryWithRulesFile(rulesJson);
+        using var rulesService = new Services.Rules(tempDir, _loggerFactory.CreateLogger<Services.Rules>());
+
+        // Act – incoming message matches the first pattern only
+        var found = rulesService.TryGetWebSocketResponse("/ws", "ping", out var responses);
+
+        // Assert
+        Assert.True(found);
+        Assert.NotNull(responses);
+        Assert.Single(responses);
+        Assert.Equal("pong", responses![0].Text);
+    }
+
+    [Fact]
+    public void TryGetWebSocketResponse_WithMatchPattern_SkipsNonMatchingMessages()
+    {
+        // Arrange – rule only matches "ping"
+        var rulesJson = @"[
+            {
+                ""Uri"": ""/ws"",
+                ""Response"": {
+                    ""Ws"": [
+                        { ""Behavior"": ""static"", ""Text"": ""pong"", ""Match"": ""^ping$"" }
+                    ]
+                }
+            }
+        ]";
+        var tempDir = CreateTempDirectoryWithRulesFile(rulesJson);
+        using var rulesService = new Services.Rules(tempDir, _loggerFactory.CreateLogger<Services.Rules>());
+
+        // Act – incoming message does NOT match the pattern
+        var found = rulesService.TryGetWebSocketResponse("/ws", "hello", out var responses);
+
+        // Assert – no response should be returned
+        Assert.False(found);
+        Assert.Null(responses);
+    }
+
+    [Fact]
+    public void TryGetWebSocketResponse_MultipleMatchingRules_ReturnsAll()
+    {
+        // Arrange – both rules have no Match (wildcard) so both should be returned
+        var rulesJson = @"[
+            {
+                ""Uri"": ""/ws"",
+                ""Response"": {
+                    ""Ws"": [
+                        { ""Behavior"": ""static"", ""Text"": ""first"" },
+                        { ""Behavior"": ""static"", ""Text"": ""second"" }
+                    ]
+                }
+            }
+        ]";
+        var tempDir = CreateTempDirectoryWithRulesFile(rulesJson);
+        using var rulesService = new Services.Rules(tempDir, _loggerFactory.CreateLogger<Services.Rules>());
+
+        // Act
+        var found = rulesService.TryGetWebSocketResponse("/ws", "any message", out var responses);
+
+        // Assert
+        Assert.True(found);
+        Assert.NotNull(responses);
+        Assert.Equal(2, responses!.Count);
+        Assert.Equal("first", responses[0].Text);
+        Assert.Equal("second", responses[1].Text);
+    }
+
+    [Fact]
+    public void TryGetWebSocketResponse_WithInvalidMatchPattern_RuleIsSkippedWithWarning()
+    {
+        // Arrange – invalid regex pattern; the rule should be skipped at load time
+        var rulesJson = @"[
+            {
+                ""Uri"": ""/ws"",
+                ""Response"": {
+                    ""Ws"": [
+                        { ""Behavior"": ""static"", ""Text"": ""unreachable"", ""Match"": ""[invalid"" },
+                        { ""Behavior"": ""static"", ""Text"": ""reachable"" }
+                    ]
+                }
+            }
+        ]";
+        var tempDir = CreateTempDirectoryWithRulesFile(rulesJson);
+        _logBuffer.Clear();
+        using var rulesService = new Services.Rules(tempDir, _loggerFactory.CreateLogger<Services.Rules>());
+
+        // Assert – bad rule is skipped; a warning is logged containing the invalid pattern description
+        var logs = _logBuffer.Snapshot();
+        Assert.Contains(logs, log => log.IndexOf("invalid Match pattern", StringComparison.OrdinalIgnoreCase) >= 0);
+
+        // The valid (no-match) rule is still reachable
+        var found = rulesService.TryGetWebSocketResponse("/ws", "anything", out var responses);
+        Assert.True(found);
+        Assert.NotNull(responses);
+        Assert.Single(responses);
+        Assert.Equal("reachable", responses![0].Text);
     }
 }

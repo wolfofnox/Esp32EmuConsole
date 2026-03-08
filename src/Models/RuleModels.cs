@@ -30,6 +30,11 @@ public record WebSocketResponse
     /// </summary>
     public string? Behavior { get; init; }
 
+    /// <summary>
+    /// Optional string or regex pattern to match against incoming WebSocket messages. When specified, the rule is applied only to messages that match the pattern. Ignored when <see cref="Behavior"/> is <c>"interval"</c>.
+    /// </summary>
+    public string? Match { get; init; }
+
     /// <summary>Plain-text payload used by the <c>static</c> and <c>interval</c> behaviors.</summary>
     public string? Text { get; init; }
 
@@ -50,8 +55,8 @@ public record RuleResponse
     /// <summary>Fixed HTTP response returned when an HTTP request matches this rule.</summary>
     public HttpResponse? Http { get; init; }
 
-    /// <summary>WebSocket behavior applied when a WebSocket connection is opened on the rule's URI.</summary>
-    public WebSocketResponse? Ws { get; init; }
+    /// <summary>WebSocket behaviors applied when a WebSocket connection is opened on the rule's URI. Allowed multiple.</summary>
+    public WebSocketResponse[]? Ws { get; init; }
 }
 
 /// <summary>
