@@ -402,6 +402,45 @@ public class WebSocketServiceTest : IDisposable
         Assert.Contains(mockWebSocket.SentMessages, msg => msg.Contains("tick-B"));
     }
 
+    [Fact]
+    public async Task HandleConnectionAsync_MultipleStaticBehaviors_SendsAllStaticMessages()
+    {
+        // Arrange – two non-interval (static) rules on the same path
+        var rulesJson = @"[
+            {
+                ""uri"": ""/ws/static-multi"",
+                ""response"": {
+                    ""ws"": [
+                        { ""text"": ""static-A"" },
+                        { ""text"": ""static-B"" }
+                    ]
+                }
+            }
+        ]";
+        var tempDir = CreateTempDirectoryWithRulesFile(rulesJson);
+        using var rules = new Services.Rules(tempDir, _loggerFactory.CreateLogger<Services.Rules>());
+        var wsService = new Services.WebSocket.WebSocketService(_loggerFactory.CreateLogger<Services.WebSocket.WebSocketService>(), _loggerFactory, rules);
+
+        var mockWebSocket = new MockWebSocket();
+
+        // Act – run briefly; static behaviors should be sent without needing incoming messages
+        var cts = new CancellationTokenSource();
+        cts.CancelAfter(TestTimeoutMs);
+
+        try
+        {
+            await wsService.HandleConnectionAsync(mockWebSocket, "/ws/static-multi", cts.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            // Expected
+        }
+
+        // Assert – both static-A and static-B were sent
+        Assert.True(mockWebSocket.SentMessages.Count >= 2, $"Expected at least 2 messages, got {mockWebSocket.SentMessages.Count}");
+        Assert.Contains(mockWebSocket.SentMessages, msg => msg.Contains("static-A"));
+        Assert.Contains(mockWebSocket.SentMessages, msg => msg.Contains("static-B"));
+    }
     // Mock WebSocket for testing
     private class MockWebSocket : WebSocket
     {
