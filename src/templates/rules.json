@@ -66,19 +66,19 @@
     // ── WebSocket examples ───────────────────────────────────────────────────────
 
 
-    // Regex match example - matches any message containing specific text (case-insensitive) and responds with a static text message.  
+    // Regex match example - matches any message containing specific text and responds with a static text message.  
     {
         "uri": "/ws",
         "response": {
             "ws": [{
                 "behavior": "static",
-                "text": "This response matches any message containing 'hello' (case-insensitive).",
+                "text": "This response matches any message containing 'hello' (case-sensitive).",
                 "match": "hello"
             },
             {
                 "behavior": "static",
                 "text": "This response matches any message containing 'data' (case-insensitive).",
-                "match": "data"}
+                "match": "data?i"}
             ]
         }
     },

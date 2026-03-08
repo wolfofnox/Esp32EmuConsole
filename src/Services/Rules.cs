@@ -266,7 +266,7 @@ public class Rules : IRules
                 responses = new();
                 foreach (var wsResp in wsResponses)
                 {
-                    if (wsResp.Match == null || System.Text.RegularExpressions.Regex.IsMatch(incomingMessage, wsResp.Match))
+                    if (string.IsNullOrWhiteSpace(wsResp.Match) || System.Text.RegularExpressions.Regex.IsMatch(incomingMessage, wsResp.Match))
                     {
                         responses.Add(wsResp);
                     }

@@ -94,21 +94,30 @@ public class WebSocketService
                     wsLogger.LogInformation("[RECV] {Message}", message);
                 }
 
-                var (responseMessage, messageType) = GetResponseForPath(path, buffer, result.Count, result.MessageType);
-                if (responseMessage != null)
+                if (_rules.TryGetWebSocketResponse(path, Encoding.UTF8.GetString(buffer, 0, result.Count), out var responses) && responses != null)
                 {
-                    await webSocket.SendAsync(responseMessage, messageType, true, cancellationToken);
-                    
-                    // Log sent message
-                    if (messageType == WebSocketMessageType.Binary)
-                    {
-                        var hexMessage = Convert.ToHexString(responseMessage);
-                        wsLogger.LogInformation("[SENT BINARY HEX] {Message}", hexMessage);
-                    }
-                    else
-                    {
-                        var sentMessage = Encoding.UTF8.GetString(responseMessage);
-                        wsLogger.LogInformation("[SENT] {Message}", sentMessage);
+                    foreach (var resp in responses)
+                    {   
+                        switch (resp.Behavior?.ToLowerInvariant())
+                        {
+                            case "echo":
+                                await webSocket.SendAsync(buffer[..result.Count], result.MessageType, true, cancellationToken);
+                                wsLogger.LogInformation("[ECHOED] {Message}", result.MessageType == WebSocketMessageType.Binary
+                                    ? Convert.ToHexString(buffer, 0, result.Count)
+                                    : Encoding.UTF8.GetString(buffer, 0, result.Count));
+                                break;
+                            case "static" when !string.IsNullOrEmpty(resp.Binary):
+                                await webSocket.SendAsync(Convert.FromHexString(resp.Binary), WebSocketMessageType.Binary, true, cancellationToken);
+                                wsLogger.LogInformation("[SENT BINARY HEX] {Message}", resp.Binary);
+                                break;
+                            case "static" when !string.IsNullOrEmpty(resp.Text):
+                                await webSocket.SendAsync(Encoding.UTF8.GetBytes(resp.Text), WebSocketMessageType.Text, true, cancellationToken);
+                                wsLogger.LogInformation("[SENT] {Message}", resp.Text);
+                                break;
+                            default:
+                                _logger.LogWarning("Unsupported WebSocket behavior: {Behavior} for path: {Path}", resp.Behavior, path);
+                                break;
+                        };
                     }
                 }
             }
@@ -147,15 +156,16 @@ public class WebSocketService
     {
         var responseData = wsResponse.Text ?? wsResponse.Binary;
 
+        if (!wsResponse.IntervalMs.HasValue || wsResponse.IntervalMs.Value <= 0)  
+        {  
+            wsLogger.LogWarning("Interval response IntervalMs must be greater than 0. Skipping interval message.");  
+            return;  
+        } 
+
         try
         {
             while (!cancellationToken.IsCancellationRequested && webSocket.State == WebSocketState.Open)
             {
-                if (wsResponse.IntervalMs == 0)
-                {
-                    wsLogger.LogWarning("Interval response IntervalMs 0 not allowed. Skipping interval message.");
-                    return;
-                }
                 await Task.Delay(wsResponse.IntervalMs.Value, cancellationToken);
                 
                 if (webSocket.State == WebSocketState.Open && !string.IsNullOrEmpty(responseData))
@@ -187,25 +197,5 @@ public class WebSocketService
         {
             // Expected when connection closes
         }
-    }
-
-    private (byte[]? response, WebSocketMessageType messageType) GetResponseForPath(string path, byte[] buffer, int count, WebSocketMessageType receivedType)
-    {
-        if (_rules.TryGetWebSocketResponse(path, Encoding.UTF8.GetString(buffer, 0, count), out var responses) && responses != null)
-        {
-            foreach (var resp in responses)
-            {
-                return resp.Behavior?.ToLowerInvariant() switch
-                {
-                    "echo" => (buffer[..count], receivedType),
-                    "static" when !string.IsNullOrEmpty(resp.Binary) => 
-                        (Convert.FromHexString(resp.Binary), WebSocketMessageType.Binary),
-                    "static" when !string.IsNullOrEmpty(resp.Text) => 
-                        (Encoding.UTF8.GetBytes(resp.Text), WebSocketMessageType.Text),
-                    _ => (null, WebSocketMessageType.Text)
-                };
-            }
-        }
-        return (null, WebSocketMessageType.Text);
     }
 }

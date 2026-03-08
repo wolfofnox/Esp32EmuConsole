@@ -411,8 +411,8 @@ public class WebSocketServiceTest : IDisposable
                 ""uri"": ""/ws/static-multi"",
                 ""response"": {
                     ""ws"": [
-                        { ""text"": ""static-A"" },
-                        { ""text"": ""static-B"" }
+                        { ""behavior"": ""static"", ""text"": ""static-A"" },
+                        { ""behavior"": ""static"", ""text"": ""static-B"" }
                     ]
                 }
             }
@@ -422,6 +422,7 @@ public class WebSocketServiceTest : IDisposable
         var wsService = new Services.WebSocket.WebSocketService(_loggerFactory.CreateLogger<Services.WebSocket.WebSocketService>(), _loggerFactory, rules);
 
         var mockWebSocket = new MockWebSocket();
+        mockWebSocket.ReceivedMessages.Add("any_message");
 
         // Act – run briefly; static behaviors should be sent without needing incoming messages
         var cts = new CancellationTokenSource();
@@ -437,7 +438,7 @@ public class WebSocketServiceTest : IDisposable
         }
 
         // Assert – both static-A and static-B were sent
-        Assert.True(mockWebSocket.SentMessages.Count >= 2, $"Expected at least 2 messages, got {mockWebSocket.SentMessages.Count}");
+        Assert.True(mockWebSocket.SentMessages.Count >= 3, $"Expected at least 3 messages (hello + 2), got {mockWebSocket.SentMessages.Count}");
         Assert.Contains(mockWebSocket.SentMessages, msg => msg.Contains("static-A"));
         Assert.Contains(mockWebSocket.SentMessages, msg => msg.Contains("static-B"));
     }
