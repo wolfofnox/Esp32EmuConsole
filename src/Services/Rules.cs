@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.RegularExpressions;
 
 namespace Esp32EmuConsole.Services;
 
@@ -87,6 +88,8 @@ public class Rules : IRules
             _ruleList = new List<Rule>();
             _httpRuleMap = new Dictionary<string, HttpResponse>(StringComparer.OrdinalIgnoreCase);
             _wsRuleMap = new Dictionary<string, List<WebSocketResponse>>(StringComparer.OrdinalIgnoreCase);
+            _wsIntervalRuleMap = new Dictionary<string, List<WebSocketResponse>>(StringComparer.OrdinalIgnoreCase);
+            _logger.LogWarning("rules.json not found at {RulesPath}. Starting with empty rule set.", _rulesPath);
             return;
         }
         // Read the file with retries because editors often lock the file while saving.
@@ -184,6 +187,18 @@ public class Rules : IRules
                         }
                         wsIntervalRuleMap[key].Add(wsResp);
                         continue;
+                    }
+                    if (!string.IsNullOrEmpty(wsResp.Match))
+                    {
+                        try
+                        {
+                            _ = new Regex(wsResp.Match);
+                        }
+                        catch (ArgumentException ex)
+                        {
+                            _logger.LogWarning(ex, "WebSocket rule for path {Path} has invalid Match pattern. Skipping.", key);
+                            continue;
+                        }
                     }
                     if (!wsRuleMap.ContainsKey(key))
                     {
