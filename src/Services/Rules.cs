@@ -254,10 +254,15 @@ public class Rules : IRules
                     if (wsResp.Match == null || System.Text.RegularExpressions.Regex.IsMatch(incomingMessage, wsResp.Match))
                     {
                         responses.Add(wsResp);
-                        return true;
                     }
                 }
+
+                if (responses != null && responses.Count > 0)  
+                {  
+                    return true;  
+                } 
             }
+
             responses = null;
             return false;
         }
