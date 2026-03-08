@@ -544,18 +544,17 @@ public class RulesTest : IDisposable
             {
                 ""Uri"": ""/ws"",
                 ""Response"": {
-                    ""Ws"": {
-                        ""Behavior"": ""echo""
-                    }
+                    ""Ws"": [
+                        { ""Behavior"": ""echo"" }
+                    ]
                 }
             },
             {
                 ""Uri"": ""/ws/sensor"",
                 ""Response"": {
-                    ""Ws"": {
-                        ""Behavior"": ""static"",
-                        ""Text"": ""{\u0022temp\u0022:25.5}""
-                    }
+                    ""Ws"": [
+                        { ""Behavior"": ""static"", ""Text"": ""{\u0022temp\u0022:25.5}"" }
+                    ]
                 }
             }
         ]";
@@ -571,13 +570,13 @@ public class RulesTest : IDisposable
         var echoRule = rules[0];
         Assert.Equal("websocket", echoRule.Response?.Ws != null ? "websocket" : "http");
         Assert.Equal("/ws", echoRule.Uri);
-        Assert.Equal("echo", echoRule.Response?.Ws?.Behavior);
+        Assert.Equal("echo", echoRule.Response?.Ws?[0].Behavior);
         
         var staticRule = rules[1];
         Assert.Equal("websocket", staticRule.Response?.Ws != null ? "websocket" : "http");
         Assert.Equal("/ws/sensor", staticRule.Uri);
-        Assert.Equal("static", staticRule.Response?.Ws?.Behavior);
-        Assert.Contains("temp", staticRule.Response?.Ws?.Text);
+        Assert.Equal("static", staticRule.Response?.Ws?[0].Behavior);
+        Assert.Contains("temp", staticRule.Response?.Ws?[0].Text);
     }
 
     [Fact]
@@ -597,9 +596,9 @@ public class RulesTest : IDisposable
             {
                 ""Uri"": ""/ws"",
                 ""Response"": {
-                    ""Ws"": {
-                        ""Behavior"": ""echo""
-                    }
+                    ""Ws"": [
+                        { ""Behavior"": ""echo"" }
+                    ]
                 }
             }
         ]";
@@ -622,5 +621,118 @@ public class RulesTest : IDisposable
         var wsRule = rules[1];
         Assert.Equal("websocket", wsRule.Response?.Ws != null ? "websocket" : "http");
         Assert.Equal("/ws", wsRule.Uri);
+    }
+
+    [Fact]
+    public void TryGetWebSocketResponse_WithMatchPattern_SelectsMatchingRule()
+    {
+        // Arrange – two rules on the same path, differentiated by Match
+        var rulesJson = @"[
+            {
+                ""Uri"": ""/ws"",
+                ""Response"": {
+                    ""Ws"": [
+                        { ""Behavior"": ""static"", ""Text"": ""pong"", ""Match"": ""^ping$"" },
+                        { ""Behavior"": ""static"", ""Text"": ""status ok"", ""Match"": ""status"" }
+                    ]
+                }
+            }
+        ]";
+        var tempDir = CreateTempDirectoryWithRulesFile(rulesJson);
+        using var rulesService = new Services.Rules(tempDir, _loggerFactory.CreateLogger<Services.Rules>());
+
+        // Act – incoming message matches the first pattern only
+        var found = rulesService.TryGetWebSocketResponse("/ws", "ping", out var responses);
+
+        // Assert
+        Assert.True(found);
+        Assert.NotNull(responses);
+        Assert.Single(responses);
+        Assert.Equal("pong", responses![0].Text);
+    }
+
+    [Fact]
+    public void TryGetWebSocketResponse_WithMatchPattern_SkipsNonMatchingMessages()
+    {
+        // Arrange – rule only matches "ping"
+        var rulesJson = @"[
+            {
+                ""Uri"": ""/ws"",
+                ""Response"": {
+                    ""Ws"": [
+                        { ""Behavior"": ""static"", ""Text"": ""pong"", ""Match"": ""^ping$"" }
+                    ]
+                }
+            }
+        ]";
+        var tempDir = CreateTempDirectoryWithRulesFile(rulesJson);
+        using var rulesService = new Services.Rules(tempDir, _loggerFactory.CreateLogger<Services.Rules>());
+
+        // Act – incoming message does NOT match the pattern
+        var found = rulesService.TryGetWebSocketResponse("/ws", "hello", out var responses);
+
+        // Assert – no response should be returned
+        Assert.False(found);
+        Assert.Null(responses);
+    }
+
+    [Fact]
+    public void TryGetWebSocketResponse_MultipleMatchingRules_ReturnsAll()
+    {
+        // Arrange – both rules have no Match (wildcard) so both should be returned
+        var rulesJson = @"[
+            {
+                ""Uri"": ""/ws"",
+                ""Response"": {
+                    ""Ws"": [
+                        { ""Behavior"": ""static"", ""Text"": ""first"" },
+                        { ""Behavior"": ""static"", ""Text"": ""second"" }
+                    ]
+                }
+            }
+        ]";
+        var tempDir = CreateTempDirectoryWithRulesFile(rulesJson);
+        using var rulesService = new Services.Rules(tempDir, _loggerFactory.CreateLogger<Services.Rules>());
+
+        // Act
+        var found = rulesService.TryGetWebSocketResponse("/ws", "any message", out var responses);
+
+        // Assert
+        Assert.True(found);
+        Assert.NotNull(responses);
+        Assert.Equal(2, responses!.Count);
+        Assert.Equal("first", responses[0].Text);
+        Assert.Equal("second", responses[1].Text);
+    }
+
+    [Fact]
+    public void TryGetWebSocketResponse_WithInvalidMatchPattern_RuleIsSkippedWithWarning()
+    {
+        // Arrange – invalid regex pattern; the rule should be skipped at load time
+        var rulesJson = @"[
+            {
+                ""Uri"": ""/ws"",
+                ""Response"": {
+                    ""Ws"": [
+                        { ""Behavior"": ""static"", ""Text"": ""unreachable"", ""Match"": ""[invalid"" },
+                        { ""Behavior"": ""static"", ""Text"": ""reachable"" }
+                    ]
+                }
+            }
+        ]";
+        var tempDir = CreateTempDirectoryWithRulesFile(rulesJson);
+        _logBuffer.Clear();
+        using var rulesService = new Services.Rules(tempDir, _loggerFactory.CreateLogger<Services.Rules>());
+
+        // Assert – bad rule is skipped; a warning is logged containing the invalid pattern description
+        var logs = _logBuffer.Snapshot();
+        Assert.Contains(logs, log => log.IndexOf("invalid Match pattern", StringComparison.OrdinalIgnoreCase) >= 0);
+
+        // The valid (no-match) rule is still reachable
+        var found = rulesService.TryGetWebSocketResponse("/ws", "anything", out var responses);
+        Assert.True(found);
+        Assert.NotNull(responses);
+        Assert.Single(responses);
+        Assert.Equal("reachable", responses![0].Text);
     }
 }
