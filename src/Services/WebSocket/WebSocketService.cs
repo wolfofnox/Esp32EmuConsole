@@ -57,7 +57,7 @@ public class WebSocketService
             // Start interval task if configured
             var intervalCts = new List<CancellationTokenSource>();
 
-            if (_rules.GetWebSocketIntervalResponse(path, out var intervalResponses) && intervalResponses != null)
+            if (_rules.TryGetWebSocketIntervalResponse(path, out var intervalResponses) && intervalResponses != null)
             {
                 foreach (var resp in intervalResponses)
                 {
@@ -151,7 +151,12 @@ public class WebSocketService
         {
             while (!cancellationToken.IsCancellationRequested && webSocket.State == WebSocketState.Open)
             {
-                await Task.Delay(wsResponse.IntervalMs ?? 0, cancellationToken);
+                if (wsResponse.IntervalMs == 0)
+                {
+                    wsLogger.LogWarning("Interval response IntervalMs 0 not allowed. Skipping interval message.");
+                    return;
+                }
+                await Task.Delay(wsResponse.IntervalMs.Value, cancellationToken);
                 
                 if (webSocket.State == WebSocketState.Open && !string.IsNullOrEmpty(responseData))
                 {
@@ -186,11 +191,11 @@ public class WebSocketService
 
     private (byte[]? response, WebSocketMessageType messageType) GetResponseForPath(string path, byte[] buffer, int count, WebSocketMessageType receivedType)
     {
-        if (_rules.GetWebSocketResponse(path, Encoding.UTF8.GetString(buffer, 0, count), out var responses) && responses != null)
+        if (_rules.TryGetWebSocketResponse(path, Encoding.UTF8.GetString(buffer, 0, count), out var responses) && responses != null)
         {
             foreach (var resp in responses)
             {
-                return resp.Behavior switch
+                return resp.Behavior?.ToLowerInvariant() switch
                 {
                     "echo" => (buffer[..count], receivedType),
                     "static" when !string.IsNullOrEmpty(resp.Binary) => 

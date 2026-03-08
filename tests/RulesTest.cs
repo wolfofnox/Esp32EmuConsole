@@ -88,7 +88,7 @@ public class RulesTest : IDisposable
 
         // Assert
         Assert.Empty(rulesService.GetRules());
-        var hasResponse = rulesService.GetHttpResponse("GET", "/any", out _);
+        var hasResponse = rulesService.TryGetHttpResponse("GET", "/any", out _);
         Assert.False(hasResponse);
 
     }
@@ -142,11 +142,11 @@ public class RulesTest : IDisposable
         using var rulesService = new Services.Rules(tempDir, _loggerFactory.CreateLogger<Services.Rules>());
 
         // Assert
-        var hasGetResponse = rulesService.GetHttpResponse("GET", "/api/users", out var getResp);
+        var hasGetResponse = rulesService.TryGetHttpResponse("GET", "/api/users", out var getResp);
         Assert.True(hasGetResponse);
         Assert.Equal(200, getResp?.StatusCode);
         
-        var hasPostResponse = rulesService.GetHttpResponse("POST", "/api/users", out var postResp);
+        var hasPostResponse = rulesService.TryGetHttpResponse("POST", "/api/users", out var postResp);
         Assert.True(hasPostResponse);
         Assert.Equal(201, postResp?.StatusCode);
 
@@ -172,9 +172,9 @@ public class RulesTest : IDisposable
         using var rulesService = new Services.Rules(tempDir, _loggerFactory.CreateLogger<Services.Rules>());
 
         // Assert
-        Assert.True(rulesService.GetHttpResponse("GET", "/test", out _));
-        Assert.True(rulesService.GetHttpResponse("get", "/test", out _));
-        Assert.True(rulesService.GetHttpResponse("Get", "/test", out _));
+        Assert.True(rulesService.TryGetHttpResponse("GET", "/test", out _));
+        Assert.True(rulesService.TryGetHttpResponse("get", "/test", out _));
+        Assert.True(rulesService.TryGetHttpResponse("Get", "/test", out _));
 
     }
 
@@ -198,7 +198,7 @@ public class RulesTest : IDisposable
         using var rulesService = new Services.Rules(tempDir, _loggerFactory.CreateLogger<Services.Rules>());
 
         // Assert
-        Assert.True(rulesService.GetHttpResponse("GET", "/test", out _));
+        Assert.True(rulesService.TryGetHttpResponse("GET", "/test", out _));
 
     }
 
@@ -221,7 +221,7 @@ public class RulesTest : IDisposable
         // Assert
         var rules = rulesService.GetRules();
         Assert.Single(rules);
-        var hasResponse = rulesService.GetHttpResponse("GET", "/test", out var response);
+        var hasResponse = rulesService.TryGetHttpResponse("GET", "/test", out var response);
         Assert.True(hasResponse);
         Assert.NotNull(response);
         Assert.Equal(501, response?.StatusCode);
@@ -258,8 +258,8 @@ public class RulesTest : IDisposable
         // Assert
         var rules = rulesService.GetRules();
         Assert.Equal(2, rules.Count);
-        Assert.True(rulesService.GetHttpResponse("GET", "/valid", out _));
-        Assert.False(rulesService.GetHttpResponse("GET", "", out _));
+        Assert.True(rulesService.TryGetHttpResponse("GET", "/valid", out _));
+        Assert.False(rulesService.TryGetHttpResponse("GET", "", out _));
 
     }
 
@@ -283,7 +283,7 @@ public class RulesTest : IDisposable
         using var rulesService = new Services.Rules(tempDir, _loggerFactory.CreateLogger<Services.Rules>());
 
         // Assert
-        Assert.True(rulesService.GetHttpResponse("GET", "/test", out _));
+        Assert.True(rulesService.TryGetHttpResponse("GET", "/test", out _));
 
     }
 
@@ -361,7 +361,7 @@ public class RulesTest : IDisposable
         using var rulesService = new Services.Rules(tempDir, _loggerFactory.CreateLogger<Services.Rules>());
 
         // Assert
-        var hasResponse = rulesService.GetHttpResponse("GET", "/test", out var response);
+        var hasResponse = rulesService.TryGetHttpResponse("GET", "/test", out var response);
         Assert.True(hasResponse, "Should find response for 'GET /test'");
         Assert.NotNull(response);
         Assert.Equal(200, response!.StatusCode);
@@ -414,7 +414,7 @@ public class RulesTest : IDisposable
                     while (!shouldStop)
                     {
                         // Read using GetHttpResponse and verify data integrity
-                        var found1 = rulesService.GetHttpResponse("GET", "/test1", out var resp1);
+                        var found1 = rulesService.TryGetHttpResponse("GET", "/test1", out var resp1);
                         if (found1)
                         {
                             if (resp1 == null || resp1.StatusCode != 200)
@@ -423,7 +423,7 @@ public class RulesTest : IDisposable
                             }
                         }
                         
-                        var found2 = rulesService.GetHttpResponse("GET", "/test2", out var resp2);
+                        var found2 = rulesService.TryGetHttpResponse("GET", "/test2", out var resp2);
                         if (found2)
                         {
                             if (resp2 == null || resp2.StatusCode != 201)
@@ -511,7 +511,7 @@ public class RulesTest : IDisposable
         using var rulesService = new Services.Rules(tempDir, _loggerFactory.CreateLogger<Services.Rules>());
 
         // Verify original rule
-        var hasOriginal = rulesService.GetHttpResponse("GET", "/test", out var originalResp);
+        var hasOriginal = rulesService.TryGetHttpResponse("GET", "/test", out var originalResp);
         Assert.True(hasOriginal);
         Assert.Equal("original", originalResp?.Body);
 
@@ -531,7 +531,7 @@ public class RulesTest : IDisposable
         rulesService.ReloadRules();
 
         // Assert - Rules should be updated
-        var hasUpdated = rulesService.GetHttpResponse("GET", "/test", out var updatedResp);
+        var hasUpdated = rulesService.TryGetHttpResponse("GET", "/test", out var updatedResp);
         Assert.True(hasUpdated);
         Assert.Equal("updated", updatedResp?.Body);
     }
