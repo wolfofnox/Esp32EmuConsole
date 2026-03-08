@@ -12,6 +12,12 @@ namespace Esp32EmuConsole.Services;
 /// </summary>
 public class Rules : IRules
 {
+    /// <summary>Maximum time allowed per regex match to guard against catastrophic backtracking.</summary>
+    private static readonly TimeSpan RegexMatchTimeout = TimeSpan.FromSeconds(1);
+
+    /// <summary>Pairs a <see cref="WebSocketResponse"/> with its pre-compiled <see cref="Regex"/> (null when no pattern is set).</summary>
+    private sealed record CompiledWebSocketResponse(WebSocketResponse Response, Regex? CompiledMatch);
+
     private readonly string _rulesPath;
     private readonly FileSystemWatcher? _watcher;
     private readonly System.Timers.Timer? _reloadTimer;
@@ -25,7 +31,7 @@ public class Rules : IRules
     private readonly ReaderWriterLockSlim _lock = new();
     private List<Rule> _ruleList = new();
     private Dictionary<string, HttpResponse> _httpRuleMap = new(StringComparer.OrdinalIgnoreCase);
-    private Dictionary<string, List<WebSocketResponse>> _wsRuleMap = new(StringComparer.OrdinalIgnoreCase);
+    private Dictionary<string, List<CompiledWebSocketResponse>> _wsRuleMap = new(StringComparer.OrdinalIgnoreCase);
     private Dictionary<string, List<WebSocketResponse>> _wsIntervalRuleMap = new(StringComparer.OrdinalIgnoreCase);
     public Rules(string workingDirectory, ILogger<Rules> logger)
     {
@@ -87,7 +93,7 @@ public class Rules : IRules
         {
             _ruleList = new List<Rule>();
             _httpRuleMap = new Dictionary<string, HttpResponse>(StringComparer.OrdinalIgnoreCase);
-            _wsRuleMap = new Dictionary<string, List<WebSocketResponse>>(StringComparer.OrdinalIgnoreCase);
+            _wsRuleMap = new Dictionary<string, List<CompiledWebSocketResponse>>(StringComparer.OrdinalIgnoreCase);
             _wsIntervalRuleMap = new Dictionary<string, List<WebSocketResponse>>(StringComparer.OrdinalIgnoreCase);
             _logger.LogWarning("rules.json not found at {RulesPath}. Starting with empty rule set.", _rulesPath);
             return;
@@ -136,7 +142,7 @@ public class Rules : IRules
         }
 
         var httpRuleMap = new Dictionary<string, HttpResponse>(StringComparer.OrdinalIgnoreCase);
-        var wsRuleMap = new Dictionary<string, List<WebSocketResponse>>(StringComparer.OrdinalIgnoreCase);
+        var wsRuleMap = new Dictionary<string, List<CompiledWebSocketResponse>>(StringComparer.OrdinalIgnoreCase);
         var wsIntervalRuleMap = new Dictionary<string, List<WebSocketResponse>>(StringComparer.OrdinalIgnoreCase);
         foreach (var r in rules)
         {
@@ -188,11 +194,12 @@ public class Rules : IRules
                         wsIntervalRuleMap[key].Add(wsResp);
                         continue;
                     }
+                    Regex? compiledMatch = null;
                     if (!string.IsNullOrEmpty(wsResp.Match))
                     {
                         try
                         {
-                            _ = new Regex(wsResp.Match);
+                            compiledMatch = new Regex(wsResp.Match, RegexOptions.Compiled, RegexMatchTimeout);
                         }
                         catch (ArgumentException ex)
                         {
@@ -202,9 +209,9 @@ public class Rules : IRules
                     }
                     if (!wsRuleMap.ContainsKey(key))
                     {
-                        wsRuleMap[key] = new List<WebSocketResponse>();
+                        wsRuleMap[key] = new List<CompiledWebSocketResponse>();
                     }
-                    wsRuleMap[key].Add(wsResp);
+                    wsRuleMap[key].Add(new CompiledWebSocketResponse(wsResp, compiledMatch));
                 }
             }
         }
@@ -264,11 +271,23 @@ public class Rules : IRules
             if (_wsRuleMap.TryGetValue(path, out var wsResponses))
             {
                 responses = new();
-                foreach (var wsResp in wsResponses)
+                foreach (var compiled in wsResponses)
                 {
-                    if (string.IsNullOrWhiteSpace(wsResp.Match) || System.Text.RegularExpressions.Regex.IsMatch(incomingMessage, wsResp.Match))
+                    if (compiled.CompiledMatch is null)
                     {
-                        responses.Add(wsResp);
+                        responses.Add(compiled.Response);
+                    }
+                    else
+                    {
+                        try
+                        {
+                            if (compiled.CompiledMatch.IsMatch(incomingMessage))
+                                responses.Add(compiled.Response);
+                        }
+                        catch (RegexMatchTimeoutException ex)
+                        {
+                            _logger.LogWarning(ex, "Regex match timed out for pattern {Pattern} on path {Path}. Skipping rule.", compiled.Response.Match, path);
+                        }
                     }
                 }
 
