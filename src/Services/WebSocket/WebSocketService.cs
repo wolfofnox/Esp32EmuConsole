@@ -63,7 +63,7 @@ public class WebSocketService
                 {
                     if (resp.IntervalMs.HasValue)
                     {
-                        var cts = new CancellationTokenSource();
+                        var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
                         intervalCts.Add(cts);
                         _ = StartIntervalMessageAsync(webSocket, resp, wsLogger, cts.Token);
                     }
