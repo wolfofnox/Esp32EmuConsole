@@ -213,7 +213,7 @@ public class Rules : IRules
         }
     }
 
-    public bool GetHttpResponse(string method, string path, out HttpResponse? response)
+    public bool TryGetHttpResponse(string method, string path, out HttpResponse? response)
     {
         _lock.EnterReadLock();
         try
@@ -241,7 +241,7 @@ public class Rules : IRules
         }
     }
 
-    public bool GetWebSocketResponse(string path, string incomingMessage, out List<WebSocketResponse>? responses)
+    public bool TryGetWebSocketResponse(string path, string incomingMessage, out List<WebSocketResponse>? responses)
     {
         _lock.EnterReadLock();
         try
@@ -267,7 +267,7 @@ public class Rules : IRules
         }
     }
 
-    public bool GetWebSocketIntervalResponse(string path, out List<WebSocketResponse>? responses)
+    public bool TryGetWebSocketIntervalResponse(string path, out List<WebSocketResponse>? responses)
     {
         _lock.EnterReadLock();
         try

@@ -19,7 +19,7 @@ public interface IRules : IDisposable
     /// <param name="path">The request path.</param>
     /// <param name="response">The fixed response if found, null otherwise.</param>
     /// <returns>True if a rule was found for the method and path; otherwise, false.</returns>
-    bool GetHttpResponse(string method, string path, out HttpResponse? response);
+    bool TryGetHttpResponse(string method, string path, out HttpResponse? response);
 
     /// <summary>
     /// Attempts to get a WebSocket response for the specified path and incoming message.
@@ -27,18 +27,18 @@ public interface IRules : IDisposable
     /// </summary>
     /// <param name="path">The WebSocket path.</param>
     /// <param name="incomingMessage">The incoming WebSocket message.</param>
-    /// <param name="response">The WebSocket response if found, null otherwise.</param>
+    /// <param name="responses">The list of WebSocket responses if found; null otherwise.</param>
     /// <returns>True if a rule was found for the path and incoming message; otherwise, false.</returns>
-    bool GetWebSocketResponse(string path, string incomingMessage, out List<WebSocketResponse>? responses);
+    bool TryGetWebSocketResponse(string path, string incomingMessage, out List<WebSocketResponse>? responses);
 
     /// <summary>
     /// Attempts to get a WebSocket response with "interval" behavior for the specified path.
     /// This is thread-safe and uses read locks for concurrent access.
     /// </summary>
     /// <param name="path">The WebSocket path.</param>
-    /// <param name="response">The WebSocket response if found, null otherwise.</param>
+    /// <param name="responses">The list of WebSocket responses if found; null otherwise.</param>
     /// <returns>True if a rule was found for the path; otherwise, false.</returns>
-    bool GetWebSocketIntervalResponse(string path, out List<WebSocketResponse>? responses);
+    bool TryGetWebSocketIntervalResponse(string path, out List<WebSocketResponse>? responses);
 
     /// <summary>
     /// Reloads the rules from the rules file.
